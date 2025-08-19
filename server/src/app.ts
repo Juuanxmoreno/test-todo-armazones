@@ -21,7 +21,7 @@ app.use(helmet());
 app.use(
   cors({
     // Allow all origins
-    origin: ['https://juancruzmoreno.dev', 'https://admin.juancruzmoreno.dev'],
+    origin: ['https://juancruzmoreno.dev', 'https://admin.juancruzmoreno.dev', 'http://localhost:3000'],
     credentials: true,
   }),
 );

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tu catálogo está listo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: #ffffff;
+            padding: 40px 20px;
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .logo {
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .welcome-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555;
+            margin-bottom: 30px;
+        }
+        .stats-container {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            border-left: 4px solid #2c3e50;
+        }
+        .stats-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        .stats-title::before {
+            content: "📊";
+            margin-right: 8px;
+            font-size: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 20px 15px;
+            margin: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            display: block;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .attachment-notice {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+            display: flex;
+            align-items: center;
+        }
+        .attachment-notice::before {
+            content: "📎";
+            font-size: 24px;
+            margin-right: 15px;
+        }
+        .attachment-text {
+            flex: 1;
+        }
+        .attachment-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 5px;
+        }
+        .attachment-desc {
+            font-size: 14px;
+            color: #555;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px 20px;
+            text-align: center;
+            border-top: 1px solid #e9ecef;
+        }
+        .footer-text {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .contact-info {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        .contact-info h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .contact-detail {
+            margin: 5px 0;
+            color: #555;
+        }
+        @media (max-width: 600px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+            .content {
+                padding: 30px 20px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <img src="https://i.imgur.com/nzdfwS7.png" alt="Todo Armazones Argentina" class="logo">
+            <h1>¡Tu catálogo está listo! 🎉</h1>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <div class="welcome-text">
+                <p>Hola,</p>
+                <p>Hemos generado tu catálogo personalizado con los productos que seleccionaste. El archivo PDF está adjunto a este email y listo para descargar.</p>
+                <p>Este catálogo incluye toda la información actualizada de nuestros productos, con precios y disponibilidad al día <strong>{{generatedAt}}</strong>.</p>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-container">
+                <div class="stats-title">Resumen del catálogo</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-number">{{categoriesCount}}</span>
+                        <div class="stat-label">Categorías</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{totalProducts}}</span>
+                        <div class="stat-label">Productos</div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{totalVariants}}</span>
+                        <div class="stat-label">Variantes</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attachment Notice -->
+            <div class="attachment-notice">
+                <div class="attachment-text">
+                    <div class="attachment-title">Archivo PDF adjunto</div>
+                    <div class="attachment-desc">El catálogo completo está disponible como archivo adjunto en este email. Puedes descargarlo y compartirlo con tu equipo.</div>
+                </div>
+            </div>
+
+            <div class="welcome-text">
+                <p>Si necesitas modificaciones en el catálogo, agregar más productos o tienes alguna consulta, no dudes en contactarnos. Estamos aquí para ayudarte.</p>
+                <p>¡Gracias por confiar en nosotros!</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-text">
+                <strong>Todo Armazones Argentina</strong><br>
+                Pioneros en ofrecer productos de calidad y al mejor precio del mercado.
+            </div>
+            
+            <div class="contact-info">
+                <h3>Información de contacto</h3>
+                <div class="contact-detail">📧 Email: info@todoarmazonesarg.com</div>
+                <div class="contact-detail">📱 WhatsApp: +54 9 11 36448293</div>
+                <div class="contact-detail">🌐 Web: todoarmazonesarg.com</div>
+            </div>
+            
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6; color: #999; font-size: 12px;">
+                Este email fue generado automáticamente el {{generatedAt}}.<br>
+                Por favor no respondas a este mensaje.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

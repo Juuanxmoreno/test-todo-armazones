@@ -4,7 +4,6 @@ import path from 'path';
 import env from './env';
 import logger from './logger';
 import { AppError } from '@utils/AppError';
-import { fileURLToPath } from 'url';
 
 // Configura tu transporte SMTP
 const transporter = nodemailer.createTransport({
@@ -27,18 +26,18 @@ transporter.verify((error) => {
   }
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Siempre buscar templates en dist/templates
+const templatesPath = path.resolve(process.cwd(), 'dist/templates');
 
 // Configuración de Handlebars
 const handlebarOptions = {
   viewEngine: {
     extname: '.hbs',
-    partialsDir: path.resolve(__dirname, 'templates'),
-    layoutsDir: path.resolve(__dirname, 'templates'),
+    partialsDir: templatesPath,
+    layoutsDir: templatesPath,
     defaultLayout: '', // Puedes cambiarlo a 'main' si usás layouts
   },
-  viewPath: path.resolve(__dirname, 'templates'),
+  viewPath: templatesPath,
   extName: '.hbs',
 };
 

@@ -29,16 +29,21 @@
       font-weight: 600; margin-bottom: 8px; color: #000; } .product-sku {
       font-size: 0.9rem; color: #666; margin-bottom: 8px; font-family:
       monospace; } .product-size { font-size: 0.9rem; color: #444;
-      margin-bottom: 8px; } /* VARIANTS */ .variants-inline { display: flex;
-      flex-wrap: wrap; gap: 6px; margin-top: auto; } .variant-item { width:
-      14px; height: 14px; border-radius: 50%; border: 1px solid #ccc; } /* EMPTY
+      margin-bottom: 8px; } .product-price { font-size: 1.2rem; color: #000;
+      font-weight: 600; margin-bottom: 8px; } /* VARIANTS */ .variants-inline { display: flex;
+      flex-direction: column; gap: 8px; margin-top: auto; } .variant-item { 
+      display: flex; align-items: center; gap: 8px; } .variant-color { width:
+      14px; height: 14px; border-radius: 50%; border: 1px solid #ccc; flex-shrink: 0; } 
+      .variant-name { font-size: 0.9rem; color: #444; min-width: 80px; } 
+      .variant-price { font-size: 0.9rem; color: #000; font-weight: 500; } /* EMPTY
       STATE */ .no-products { text-align: center; padding: 60px 20px; color:
       #555; } .no-products h3 { font-size: 1.4rem; margin-bottom: 8px; color:
       #000; } /* PRINT */ @media print { body { font-size: 11px; margin: 10mm;
       color: #000; } .header { padding: 20px 10px; margin-bottom: 20px; }
       .category { margin: 0 0 20px 0; page-break-before: auto; } .subcategory {
       margin: 8px 0; } .product-row { padding: 12px 0; page-break-inside: auto;
-      } .product-image { width: 220px; height: 160px; } }
+      } .product-image { width: 220px; height: 160px; } .variant-item { gap: 6px; } 
+      .variant-color { width: 12px; height: 12px; } .variant-name, .variant-price { font-size: 0.8rem; } }
     </style>
   </head>
   <body>
@@ -74,13 +79,25 @@
                           <div class="product-size">{{size}}</div>
                         {{/if}}
                         {{#if variants.length}}
+                          {{#if (eq variants.length 1)}}
+                            <div class="product-price">{{formatCurrency variants.[0].priceUSD}}</div>
+                          {{else}}
+                            {{#if (eq (minPrice variants) (maxPrice variants))}}
+                              <div class="product-price">{{formatCurrency (minPrice variants)}}</div>
+                            {{else}}
+                              <div class="product-price">{{formatCurrency (minPrice variants)}} - {{formatCurrency (maxPrice variants)}}</div>
+                            {{/if}}
+                          {{/if}}
                           <div class="variants-inline">
                             {{#each variants}}
-                              <div
-                                class="variant-item"
-                                style="background-color: {{color.hex}};"
-                                title="{{color.name}}"
-                              ></div>
+                              <div class="variant-item">
+                                <div
+                                  class="variant-color"
+                                  style="background-color: {{color.hex}};"
+                                ></div>
+                                <span class="variant-name">{{color.name}}</span>
+                                <span class="variant-price">{{formatCurrency priceUSD}}</span>
+                              </div>
                             {{/each}}
                           </div>
                         {{/if}}

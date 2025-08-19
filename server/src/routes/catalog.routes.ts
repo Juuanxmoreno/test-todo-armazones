@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { CatalogController } from '@controllers/catalog.controller';
 import { upload } from '@config/multer';
-import { checkSession } from '@middlewares/authMiddleware';
 import { validateRequest } from '@middlewares/validate-request';
 import { GenerateCatalogRequestSchema } from '../schemas/catalog.schema';
 
@@ -10,14 +9,13 @@ const catalogController = new CatalogController();
 
 /**
  * POST /catalog/generate
- * Genera un catálogo en PDF
- * - Requiere autenticación de administrador
+ * Genera un catálogo en PDF y lo envía por email
+ * - Requiere un email válido para el envío
  * - Acepta un archivo de logo opcional
- * - Body: GenerateCatalogRequestDto
+ * - Body: GenerateCatalogRequestDto (incluyendo email)
  */
 router.post(
   '/generate',
-  checkSession,
   upload.single('logo'), // Campo opcional para el logo
   validateRequest(GenerateCatalogRequestSchema),
   catalogController.generateCatalog,

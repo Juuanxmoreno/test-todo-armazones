@@ -15,14 +15,48 @@ import {
   CatalogSubcategoryDto,
   CatalogProductDto,
   CatalogProductVariantDto,
+  PriceAdjustmentDto,
 } from '@dto/catalog.dto';
 
 import { AppError } from '@utils/AppError';
 import logger from '@config/logger';
 import { generateCatalogPDF } from '@utils/catalogPdfGenerator';
 import env from '@config/env';
+import transporter from '@config/nodemailer.config';
 
 export class CatalogService {
+  /**
+   * Calcula el precio ajustado según los ajustes de precio configurados
+   */
+  private calculateAdjustedPrice(
+    originalPrice: number,
+    categoryId: string,
+    subcategoryId: string,
+    priceAdjustments: PriceAdjustmentDto[],
+  ): number {
+    if (!priceAdjustments || priceAdjustments.length === 0) {
+      return originalPrice;
+    }
+
+    // Buscar ajuste específico por subcategoría (más específico)
+    const subcategoryAdjustment = priceAdjustments.find(
+      (adjustment) => adjustment.subcategoryId?.toString() === subcategoryId,
+    );
+
+    if (subcategoryAdjustment) {
+      return originalPrice * (1 + subcategoryAdjustment.percentageIncrease / 100);
+    }
+
+    // Buscar ajuste por categoría (menos específico)
+    const categoryAdjustment = priceAdjustments.find((adjustment) => adjustment.categoryId?.toString() === categoryId);
+
+    if (categoryAdjustment) {
+      return originalPrice * (1 + categoryAdjustment.percentageIncrease / 100);
+    }
+
+    return originalPrice;
+  }
+
   /**
    * Convierte una URL relativa a una URL absoluta con el SERVER_URL
    */
@@ -45,7 +79,7 @@ export class CatalogService {
   }
 
   /**
-   * Genera un catálogo en PDF con las opciones especificadas
+   * Genera un catálogo en PDF con las opciones especificadas y lo envía por email
    */
   public async generateCatalog(
     catalogData: GenerateCatalogRequestDto,
@@ -55,6 +89,11 @@ export class CatalogService {
       // Validar que al menos se especifique una opción de filtrado
       if (!catalogData.categories?.length && !catalogData.subcategories?.length) {
         throw new AppError('Debe especificar al menos una categoría o subcategoría', 400);
+      }
+
+      // Validar email
+      if (!catalogData.email) {
+        throw new AppError('El email es requerido', 400);
       }
 
       // Procesar logo
@@ -97,15 +136,40 @@ export class CatalogService {
 
       fs.writeFileSync(filePath, pdfBuffer);
 
-      logger.info('Catálogo generado exitosamente', {
+      // Enviar catálogo por email usando la plantilla Handlebars
+      await transporter.sendMail({
+        from: `Todo Armazones Argentina <${env.EMAIL_USER}>`,
+        to: catalogData.email,
+        subject: 'Tu catálogo de productos está listo',
+        // @ts-expect-error - nodemailer with handlebars template property not typed
+        template: 'catalog-email',
+        context: {
+          logoUrl,
+          generatedAt: fullCatalogData.generatedAt,
+          categoriesCount: catalogInfo.categories.length,
+          totalProducts: catalogInfo.totalProducts,
+          totalVariants: catalogInfo.totalVariants,
+        },
+        attachments: [
+          {
+            filename: fileName,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+          },
+        ],
+      });
+
+      logger.info('Catálogo generado y enviado exitosamente', {
         fileName,
+        email: catalogData.email,
         categoriesCount: catalogInfo.categories.length,
         totalProducts: catalogInfo.totalProducts,
         totalVariants: catalogInfo.totalVariants,
+        priceAdjustmentsApplied: catalogData.priceAdjustments?.length || 0,
       });
 
       return {
-        message: 'Catálogo generado exitosamente',
+        message: 'Catálogo generado y enviado por email exitosamente',
         pdfUrl: `/uploads/${fileName}`,
         fileName,
       };
@@ -206,13 +270,21 @@ export class CatalogService {
           }).lean();
 
           for (const variant of variants) {
+            // Calcular precio ajustado
+            const adjustedPrice = this.calculateAdjustedPrice(
+              variant.priceUSD,
+              category._id.toString(),
+              subcategory._id.toString(),
+              catalogData.priceAdjustments || [],
+            );
+
             const variantDto: CatalogProductVariantDto = {
               id: variant._id.toString(),
               color: variant.color,
               stock: variant.stock,
               thumbnail: this.getAbsoluteImageUrl(variant.thumbnail),
               images: variant.images.map((img) => this.getAbsoluteImageUrl(img)),
-              priceUSD: variant.priceUSD,
+              priceUSD: adjustedPrice,
             };
 
             productDto.variants.push(variantDto);

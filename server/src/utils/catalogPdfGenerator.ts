@@ -27,6 +27,18 @@ export async function generateCatalogPDF(catalogData: CatalogDataDto): Promise<B
     return a + b;
   });
 
+  // Helper para obtener el precio mínimo de las variantes
+  handlebars.registerHelper('minPrice', (variants: Array<{ priceUSD: number }>) => {
+    if (!variants || variants.length === 0) return 0;
+    return Math.min(...variants.map((v) => v.priceUSD));
+  });
+
+  // Helper para obtener el precio máximo de las variantes
+  handlebars.registerHelper('maxPrice', (variants: Array<{ priceUSD: number }>) => {
+    if (!variants || variants.length === 0) return 0;
+    return Math.max(...variants.map((v) => v.priceUSD));
+  });
+
   // Preparar datos para el template
   const html = template({
     ...catalogData,

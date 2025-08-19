@@ -1,8 +1,16 @@
 import { Types } from 'mongoose';
 
+export interface PriceAdjustmentDto {
+  categoryId?: Types.ObjectId; // ID de categoría para aplicar incremento
+  subcategoryId?: Types.ObjectId; // ID de subcategoría para aplicar incremento
+  percentageIncrease: number; // Porcentaje de incremento (ej: 35 para 35%)
+}
+
 export interface GenerateCatalogRequestDto {
+  email: string; // Email al que se enviará el catálogo
   categories?: Types.ObjectId[]; // IDs de categorías específicas a incluir
   subcategories?: Types.ObjectId[]; // IDs de subcategorías específicas a incluir
+  priceAdjustments?: PriceAdjustmentDto[]; // Ajustes de precio por categoría/subcategoría
 }
 
 export interface GenerateCatalogResponseDto {
