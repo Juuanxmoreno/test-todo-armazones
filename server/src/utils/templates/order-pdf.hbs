@@ -1,0 +1,141 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Orden #{{orderNumber}}</title>
+    <style>
+      body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff;
+      color: #111; margin: 0; padding: 0; padding-bottom: 80px; /* Aumentamos el
+      espacio para el pie de página */ } .header { background: #fff;
+      border-bottom: 1px solid #e0e0e0; padding: 24px 24px 16px 24px; margin:
+      32px 40px 0 40px; text-align: center; } .logo { height: 100px; width:
+      120px; margin-left: 20px; } .sub-header { display: flex; justify-content:
+      space-between; align-items: center; margin: 0; text-align: left; }
+      .sub-header div { flex: 1; } .order-info { background: #fff; margin: 32px
+      40px 0 40px; padding: 24px 24px 16px 24px; border-radius: 8px; box-shadow:
+      0 1px 4px #0001; border: 1px solid #eee; } .order-label { font-size: 1rem;
+      color: #222; font-weight: 500; letter-spacing: 1px; } .order-number {
+      font-size: 2rem; font-weight: bold; color: #000; margin-bottom: 8px;
+      letter-spacing: 1px; } .meta { margin-bottom: 8px; color: #222; }
+      .section-title { font-size: 1rem; color: #111; margin-top: 24px;
+      margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px; } table {
+      width: 100%; border-collapse: collapse; margin-top: 16px; background:
+      #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px #0001; }
+      th, td { border: 1px solid #e0e0e0; padding: 10px 8px; text-align: left; }
+      th { background: #f5f5f5; color: #111; font-weight: 600; } .total-row td {
+      font-weight: bold; background: #fafafa; color: #000; font-size: 1.05rem; }
+      .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align:
+      center; color: #888; font-size: 0.95rem; padding-top: 100px; border-top:
+      1px solid #e0e0e0; background-color: #fff; z-index: 1000; margin-top:
+      16px; } /* Agregar margen inferior a la tabla */ table { width: 100%;
+      border-collapse: collapse; margin-top: 16px; margin-bottom: 40px; /*
+      Espacio adicional entre la tabla y el pie de página */ background: #fff;
+      border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px #0001; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1 style="margin: 0; font-size: 1.5rem;">FACTURA</h1>
+      <div class="sub-header">
+        <div style="text-align: left;">
+          <strong>TODO ARMAZONES</strong><br />
+          Buenos Aires, Argentina
+        </div>
+        <div style="text-align: right;">
+          <img src="{{logoUrl}}" class="logo" alt="Logo" />
+        </div>
+      </div>
+    </div>
+    <div class="order-info">
+      <div class="order-label">Orden</div>
+      <div class="order-number">#{{orderNumber}}</div>
+      <div class="meta"><strong>Fecha:</strong> {{createdAt}}</div>
+      <div class="section-title">Información del Cliente:</div>
+      <div class="meta"><strong>Nombre:</strong>
+        {{user.firstName}}
+        {{user.lastName}}</div>
+      <div class="meta"><strong>Email:</strong> {{user.email}}</div>
+      <div class="meta"><strong>Teléfono:</strong> {{user.phone}}</div>
+      <div class="meta"><strong>DNI:</strong> {{user.dni}}</div>
+      <div class="section-title">Dirección de Envío</div>
+      <div class="meta">{{shippingAddress.streetAddress}},
+        {{shippingAddress.city}},
+        {{shippingAddress.state}},
+        {{shippingAddress.postalCode}}</div>
+      <div class="meta"><strong>Tel:</strong>
+        {{shippingAddress.phoneNumber}}
+        |
+        <strong>DNI:</strong>
+        {{shippingAddress.dni}}</div>
+      <div class="meta"><strong>Método de envío:</strong>
+        {{shippingMethodLabel}}</div>
+
+      {{#if isParcelCompany}}
+        {{#if shippingAddress.shippingCompany}}
+          <div class="meta"><strong>Empresa de paquetería:</strong>
+            {{shippingAddress.shippingCompany}}</div>
+        {{/if}}
+        {{#if shippingAddress.declaredShippingAmount}}
+          <div class="meta"><strong>Monto declarado envío:</strong>
+            {{shippingAddress.declaredShippingAmount}}</div>
+        {{/if}}
+      {{/if}}
+      {{#if isMotorcycle}}
+        {{#if shippingAddress.deliveryWindow}}
+          <div class="meta"><strong>Franja horaria de entrega:</strong>
+            {{shippingAddress.deliveryWindow}}</div>
+        {{/if}}
+      {{/if}}
+      <div class="meta"><strong>Método de pago:</strong>
+        {{paymentMethodLabel}}</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Precio USD</th>
+            <th>Subtotal USD</th>
+            <th>Ganancia USD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+            <tr>
+              <td>{{productVariant.product.productModel}}
+                {{productVariant.product.sku}}
+              </td>
+              <td>{{quantity}}</td>
+              <td>{{priceUSDAtPurchase}}</td>
+              <td>{{subTotal}}</td>
+              <td>{{gainUSD}}</td>
+            </tr>
+          {{/each}}
+          {{#if showBankTransferExpense}}
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;">Gasto por transferencia
+                bancaria:</td>
+              <td>{{bankTransferExpense}}</td>
+              <td></td>
+            </tr>
+          {{/if}}
+          <tr class="total-row">
+            <td colspan="3" style="text-align:right;">Total:</td>
+            <td>{{totalAmount}}</td>
+            <td></td>
+          </tr>
+          <tr class="total-row">
+            <td colspan="4" style="text-align:right;">Ganancia Total:</td>
+            <td>{{totalGainUSD}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div
+      class="footer"
+      style="border-top: 1px solid #e0e0e0; padding-top: 10px;"
+    >
+      - Pagos por transferencia o deposito bancario incluyen un 4% de interés
+      sobre el Total<br />
+      - Costos extra de envio a cargo del Cliente
+    </div>
+  </body>
+</html>
