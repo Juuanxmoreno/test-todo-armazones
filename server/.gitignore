@@ -63,7 +63,7 @@ Thumbs.db
 certs/
 
 # Uploaded files
-uploads/
+#uploads/
 
 # Ignore test output
 /test-output/
