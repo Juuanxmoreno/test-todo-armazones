@@ -14,7 +14,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#C6E1C6", color: "#2C4700" }}
         >
           <Info className="w-4 h-4" />
-          Processing
+          Procesando
         </span>
       );
     case OrderStatus.OnHold:
@@ -24,7 +24,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#F8DDA7", color: "#573B00" }}
         >
           <Info className="w-4 h-4" />
-          On hold
+          En espera
         </span>
       );
     case OrderStatus.PendingPayment:
@@ -34,7 +34,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#E5E5E5", color: "#454545" }}
         >
           <Info className="w-4 h-4" />
-          Pending payment
+          Pendiente de pago
         </span>
       );
     case OrderStatus.Completed:
@@ -44,7 +44,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#C8D7E1", color: "#003D66" }}
         >
           <CheckCircle2 className="w-4 h-4" />
-          Completed
+          Completado
         </span>
       );
     case OrderStatus.Cancelled:
@@ -54,7 +54,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#E5E5E5", color: "#454545" }}
         >
           <XCircle className="w-4 h-4" />
-          Cancelled
+          Cancelado
         </span>
       );
     case OrderStatus.Refunded:
@@ -64,7 +64,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#E5E5E5", color: "#454545" }}
         >
           <XCircle className="w-4 h-4" />
-          Refunded
+          Reembolsado
         </span>
       );
     default:
@@ -74,7 +74,7 @@ export const OrderStatusBadge = ({ status }: Props) => {
           style={{ backgroundColor: "#E5E5E5", color: "#454545" }}
         >
           <Info className="w-4 h-4" />
-          Unknown
+          Desconocido
         </span>
       );
   }

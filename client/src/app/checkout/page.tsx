@@ -10,7 +10,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { CartSyncError, createOrder } from "@/redux/slices/orderSlice";
 import type { CreateOrderPayload } from "@/interfaces/order";
 import { formatCurrency } from "@/utils/formatCurrency";
-import { PaymentMethod, ShippingMethod } from "@/enums/order.enum";
+import { PaymentMethod, ShippingMethod, DeliveryType } from "@/enums/order.enum";
 import Link from "next/link";
 import Image from "next/image";
 import { Check, Package, ShoppingBag } from "lucide-react";
@@ -27,6 +27,9 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState(
     PaymentMethod.CashOnDelivery
   );
+  const [deliveryType, setDeliveryType] = useState(
+    DeliveryType.HomeDelivery
+  );
   const [success, setSuccess] = useState(false);
   const [syncError, setSyncError] = useState<CartSyncError | null>(null);
 
@@ -42,11 +45,12 @@ const CheckoutPage = () => {
       lastName: user?.lastName || "",
     },
     resolver: async (data, context, options) => {
-      // Inyecta shippingMethod en los datos antes de validar
+      // Inyecta shippingMethod y deliveryType en los datos antes de validar
       return zodResolver(addressSchema)(
         {
           ...data,
           shippingMethod,
+          deliveryType,
         },
         context,
         options
@@ -89,6 +93,13 @@ const CheckoutPage = () => {
     }
   }, [paymentMethod, shippingMethod]);
 
+  // Reset delivery type to HomeDelivery when shipping method changes to Motorcycle
+  useEffect(() => {
+    if (shippingMethod === ShippingMethod.Motorcycle) {
+      setDeliveryType(DeliveryType.HomeDelivery);
+    }
+  }, [shippingMethod]);
+
   const bankTransferFee =
     paymentMethod === PaymentMethod.BankTransfer
       ? (cart?.subTotal ?? 0) * 0.04
@@ -103,7 +114,10 @@ const CheckoutPage = () => {
     if (error) resetError();
     const payload: CreateOrderPayload = {
       shippingMethod,
-      shippingAddress: data,
+      shippingAddress: {
+        ...data,
+        deliveryType,
+      },
       paymentMethod,
     };
     const result = await placeOrder(payload);
@@ -321,6 +335,40 @@ const CheckoutPage = () => {
                 )}
               </div>
             </div>
+
+            {/* Tipo de entrega (solo para ParcelCompany) */}
+            {shippingMethod === ShippingMethod.ParcelCompany && (
+              <div>
+                <label className="block text-sm text-[#7A7A7A] mb-2">
+                  Tipo de entrega *
+                </label>
+                <div className="flex flex-col gap-2">
+                  {[DeliveryType.HomeDelivery, DeliveryType.PickupPoint].map(
+                    (type) => (
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={() => setDeliveryType(type)}
+                      >
+                        <input
+                          type="radio"
+                          name="deliveryType"
+                          value={type}
+                          checked={deliveryType === type}
+                          onChange={() => setDeliveryType(type)}
+                          className="radio border-[#e1e1e1] checked:bg-[#222222]"
+                        />
+                        <span className="text-[#222222] text-sm">
+                          {type === DeliveryType.HomeDelivery
+                            ? "Entrega a domicilio"
+                            : "Retiro en punto de entrega"}
+                        </span>
+                      </label>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mb-4">
@@ -398,24 +446,101 @@ const CheckoutPage = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Campos básicos */}
             {[
               ["firstName", "Nombre *"],
               ["lastName", "Apellidos *"],
               ["email", "Email *", "Email"],
               ["phoneNumber", "Teléfono *"],
               ["dni", "DNI *", "DNI"],
-              ["streetAddress", "Dirección *"],
+            ].map(([name, label, type = "text"]) => (
+              <div
+                key={name}
+                className={name === "email" ? "col-span-2" : ""}
+              >
+                <label
+                  htmlFor={name}
+                  className="block mb-1 text-sm"
+                  style={{ color: "#7A7A7A" }}
+                >
+                  {label}
+                </label>
+                <input
+                  id={name}
+                  type={type}
+                  {...register(name as keyof AddressFormData)}
+                  className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                  style={{ borderColor: "#e1e1e1" }}
+                />
+                {errors[name as keyof AddressFormData] && (
+                  <span className="text-red-500 text-sm">
+                    {errors[name as keyof AddressFormData]?.message}
+                  </span>
+                )}
+              </div>
+            ))}
+
+            {/* Campo de dirección (solo para entrega a domicilio) */}
+            {(shippingMethod !== ShippingMethod.ParcelCompany || 
+              deliveryType === DeliveryType.HomeDelivery) && (
+              <div className="col-span-2">
+                <label
+                  htmlFor="streetAddress"
+                  className="block mb-1 text-sm"
+                  style={{ color: "#7A7A7A" }}
+                >
+                  Dirección *
+                </label>
+                <input
+                  id="streetAddress"
+                  type="text"
+                  {...register("streetAddress")}
+                  className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                  style={{ borderColor: "#e1e1e1" }}
+                />
+                {errors.streetAddress && (
+                  <span className="text-red-500 text-sm">
+                    {errors.streetAddress.message}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Campo de punto de retiro (solo para pickup point) */}
+            {shippingMethod === ShippingMethod.ParcelCompany && 
+             deliveryType === DeliveryType.PickupPoint && (
+              <div className="col-span-2">
+                <label
+                  htmlFor="pickupPointAddress"
+                  className="block mb-1 text-sm"
+                  style={{ color: "#7A7A7A" }}
+                >
+                  Dirección del punto de retiro *
+                </label>
+                <input
+                  id="pickupPointAddress"
+                  type="text"
+                  {...register("pickupPointAddress")}
+                  className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                  style={{ borderColor: "#e1e1e1" }}
+                  placeholder="Ej: Sucursal Correo Argentino - Av. Corrientes 500"
+                />
+                {errors.pickupPointAddress && (
+                  <span className="text-red-500 text-sm">
+                    {errors.pickupPointAddress.message}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Campos de ubicación */}
+            {[
               ["city", "Ciudad *", "Ciudad"],
               ["state", "Provincia *"],
               ["postalCode", "Código Postal *"],
               ["companyName", "Nombre de Empresa (opcional)"],
             ].map(([name, label, type = "text"]) => (
-              <div
-                key={name}
-                className={
-                  ["email", "streetAddress"].includes(name) ? "col-span-2" : ""
-                }
-              >
+              <div key={name}>
                 <label
                   htmlFor={name}
                   className="block mb-1 text-sm"

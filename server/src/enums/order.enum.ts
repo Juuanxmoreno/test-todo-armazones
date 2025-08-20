@@ -17,4 +17,9 @@ enum PaymentMethod {
   BankTransfer = 'BANK_TRANSFER',
 }
 
-export { OrderStatus, ShippingMethod, PaymentMethod };
+enum DeliveryType {
+  HomeDelivery = 'HOME_DELIVERY',
+  PickupPoint = 'PICKUP_POINT',
+}
+
+export { OrderStatus, ShippingMethod, PaymentMethod, DeliveryType };

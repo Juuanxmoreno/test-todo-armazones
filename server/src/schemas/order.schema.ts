@@ -1,39 +1,73 @@
 import { z } from 'zod';
-import { ShippingMethod, PaymentMethod, OrderStatus } from '@enums/order.enum';
+import { ShippingMethod, PaymentMethod, OrderStatus, DeliveryType } from '@enums/order.enum';
 import { Types } from 'mongoose';
+
+// Schema base para dirección con validación condicional
+const baseAddressSchema = z.object({
+  firstName: z.string().min(1, 'El nombre es obligatorio').max(50, 'El nombre no puede exceder los 50 caracteres'),
+  lastName: z.string().min(1, 'El apellido es obligatorio').max(50, 'El apellido no puede exceder los 50 caracteres'),
+  companyName: z.string().max(50, 'El nombre de la empresa no puede exceder los 50 caracteres').optional(),
+  email: z
+    .string()
+    .email('El correo electrónico no es válido')
+    .max(100, 'El correo electrónico no puede exceder los 100 caracteres'),
+  phoneNumber: z
+    .string()
+    .min(1, 'El número de teléfono es obligatorio')
+    .max(20, 'El número de teléfono no puede exceder los 20 caracteres'),
+  dni: z.string().min(1, 'El DNI es obligatorio').max(20, 'El DNI no puede exceder los 20 caracteres'),
+  city: z.string().min(1, 'La ciudad es obligatoria').max(50, 'La ciudad no puede exceder los 50 caracteres'),
+  state: z.string().min(1, 'El estado es obligatorio').max(50, 'El estado no puede exceder los 50 caracteres'),
+  postalCode: z
+    .string()
+    .min(1, 'El código postal es obligatorio')
+    .max(20, 'El código postal no puede exceder los 20 caracteres'),
+  shippingCompany: z.string().max(50, 'La empresa de envío no puede exceder los 50 caracteres').optional(),
+  declaredShippingAmount: z
+    .string()
+    .max(20, 'El monto declarado de envío no puede exceder los 20 caracteres')
+    .optional(),
+  deliveryWindow: z.string().max(50, 'La ventana de entrega no puede exceder los 50 caracteres').optional(),
+  deliveryType: z.nativeEnum(DeliveryType).optional(),
+  streetAddress: z.string().max(100, 'La dirección no puede exceder los 100 caracteres').optional(),
+  pickupPointAddress: z
+    .string()
+    .max(200, 'La dirección del punto de retiro no puede exceder los 200 caracteres')
+    .optional(),
+});
+
+// Schema con validación condicional para tipos de entrega
+const addressSchema = baseAddressSchema
+  .refine(
+    (data) => {
+      // Si deliveryType es HOME_DELIVERY o no está definido (por defecto es HOME_DELIVERY), streetAddress es obligatorio
+      if (!data.deliveryType || data.deliveryType === DeliveryType.HomeDelivery) {
+        return !!data.streetAddress;
+      }
+      return true;
+    },
+    {
+      message: 'La dirección es obligatoria cuando el tipo de entrega es a domicilio',
+      path: ['streetAddress'],
+    },
+  )
+  .refine(
+    (data) => {
+      // Si deliveryType es PICKUP_POINT, pickupPointAddress es obligatorio
+      if (data.deliveryType === DeliveryType.PickupPoint) {
+        return !!data.pickupPointAddress;
+      }
+      return true;
+    },
+    {
+      message: 'La dirección del punto de retiro es obligatoria cuando el tipo de entrega es punto de retiro',
+      path: ['pickupPointAddress'],
+    },
+  );
 
 export const createOrderBodySchema = z.object({
   shippingMethod: z.nativeEnum(ShippingMethod),
-  shippingAddress: z.object({
-    firstName: z.string().min(1, 'El nombre es obligatorio').max(50, 'El nombre no puede exceder los 50 caracteres'),
-    lastName: z.string().min(1, 'El apellido es obligatorio').max(50, 'El apellido no puede exceder los 50 caracteres'),
-    companyName: z.string().max(50, 'El nombre de la empresa no puede exceder los 50 caracteres').optional(),
-    email: z
-      .string()
-      .email('El correo electrónico no es válido')
-      .max(100, 'El correo electrónico no puede exceder los 100 caracteres'),
-    phoneNumber: z
-      .string()
-      .min(1, 'El número de teléfono es obligatorio')
-      .max(20, 'El número de teléfono no puede exceder los 20 caracteres'),
-    dni: z.string().min(1, 'El DNI es obligatorio').max(20, 'El DNI no puede exceder los 20 caracteres'),
-    streetAddress: z
-      .string()
-      .min(1, 'La dirección es obligatoria')
-      .max(100, 'La dirección no puede exceder los 100 caracteres'),
-    city: z.string().min(1, 'La ciudad es obligatoria').max(50, 'La ciudad no puede exceder los 50 caracteres'),
-    state: z.string().min(1, 'El estado es obligatorio').max(50, 'El estado no puede exceder los 50 caracteres'),
-    postalCode: z
-      .string()
-      .min(1, 'El código postal es obligatorio')
-      .max(20, 'El código postal no puede exceder los 20 caracteres'),
-    shippingCompany: z.string().max(50, 'La empresa de envío no puede exceder los 50 caracteres').optional(),
-    declaredShippingAmount: z
-      .string()
-      .max(20, 'El monto declarado de envío no puede exceder los 20 caracteres')
-      .optional(),
-    deliveryWindow: z.string().max(50, 'La ventana de entrega no puede exceder los 50 caracteres').optional(),
-  }),
+  shippingAddress: addressSchema,
   paymentMethod: z.nativeEnum(PaymentMethod),
 });
 
@@ -52,36 +86,7 @@ export const createOrderAdminBodySchema = z.object({
     )
     .min(1, 'Debe especificar al menos un item'),
   shippingMethod: z.nativeEnum(ShippingMethod),
-  shippingAddress: z.object({
-    firstName: z.string().min(1, 'El nombre es obligatorio').max(50, 'El nombre no puede exceder los 50 caracteres'),
-    lastName: z.string().min(1, 'El apellido es obligatorio').max(50, 'El apellido no puede exceder los 50 caracteres'),
-    companyName: z.string().max(50, 'El nombre de la empresa no puede exceder los 50 caracteres').optional(),
-    email: z
-      .string()
-      .email('El correo electrónico no es válido')
-      .max(100, 'El correo electrónico no puede exceder los 100 caracteres'),
-    phoneNumber: z
-      .string()
-      .min(1, 'El número de teléfono es obligatorio')
-      .max(20, 'El número de teléfono no puede exceder los 20 caracteres'),
-    dni: z.string().min(1, 'El DNI es obligatorio').max(20, 'El DNI no puede exceder los 20 caracteres'),
-    streetAddress: z
-      .string()
-      .min(1, 'La dirección es obligatoria')
-      .max(100, 'La dirección no puede exceder los 100 caracteres'),
-    city: z.string().min(1, 'La ciudad es obligatoria').max(50, 'La ciudad no puede exceder los 50 caracteres'),
-    state: z.string().min(1, 'El estado es obligatorio').max(50, 'El estado no puede exceder los 50 caracteres'),
-    postalCode: z
-      .string()
-      .min(1, 'El código postal es obligatorio')
-      .max(20, 'El código postal no puede exceder los 20 caracteres'),
-    shippingCompany: z.string().max(50, 'La empresa de envío no puede exceder los 50 caracteres').optional(),
-    declaredShippingAmount: z
-      .string()
-      .max(20, 'El monto declarado de envío no puede exceder los 20 caracteres')
-      .optional(),
-    deliveryWindow: z.string().max(50, 'La ventana de entrega no puede exceder los 50 caracteres').optional(),
-  }),
+  shippingAddress: addressSchema,
   paymentMethod: z.nativeEnum(PaymentMethod),
   createdAt: z
     .string()
@@ -116,7 +121,7 @@ export const updateOrderParamsSchema = z.object({
 });
 
 export const updateOrderBodySchema = z.object({
-  orderStatus: z.nativeEnum(OrderStatus).optional(),
+  orderStatus: z.enum(Object.values(OrderStatus) as string[]).optional(),
   items: z
     .array(
       z
@@ -125,8 +130,7 @@ export const updateOrderBodySchema = z.object({
             message: 'El productVariantId debe ser un ObjectId válido',
           }),
           action: z.enum(['increase', 'decrease', 'remove', 'add', 'set'], {
-            required_error: 'La acción es requerida',
-            invalid_type_error: 'La acción debe ser: increase, decrease, remove, add o set',
+            message: 'La acción debe ser: increase, decrease, remove, add o set',
           }),
           quantity: z.number().min(1, 'La cantidad debe ser mayor a 0').optional(),
         })
@@ -210,9 +214,8 @@ export const bulkUpdateOrderStatusBodySchema = z.object({
     )
     .min(1, 'Debe especificar al menos una orden')
     .max(100, 'No se pueden actualizar más de 100 órdenes a la vez'),
-  newStatus: z.nativeEnum(OrderStatus, {
-    required_error: 'El nuevo estado es requerido',
-    invalid_type_error: 'El estado debe ser uno de los valores válidos',
+  newStatus: z.enum(Object.values(OrderStatus) as string[], {
+    message: 'El estado debe ser uno de los valores válidos',
   }),
 });
 
@@ -225,8 +228,7 @@ export const checkStockAvailabilityParamsSchema = z.object({
 
 // Schema para actualizar estado con manejo de conflictos
 export const updateOrderStatusWithConflictsBodySchema = z.object({
-  orderStatus: z.nativeEnum(OrderStatus, {
-    required_error: 'El estado de la orden es requerido',
-    invalid_type_error: 'El estado debe ser uno de los valores válidos',
+  orderStatus: z.enum(Object.values(OrderStatus) as string[], {
+    message: 'El estado debe ser uno de los valores válidos',
   }),
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ShippingMethod } from "@/enums/order.enum";
+import { ShippingMethod, DeliveryType } from "@/enums/order.enum";
 
 export const addressSchema = z
   .object({
@@ -8,7 +8,7 @@ export const addressSchema = z
     email: z.string().email("Email inválido"),
     phoneNumber: z.string().min(1, "Teléfono requerido"),
     dni: z.string().min(1, "DNI requerido"),
-    streetAddress: z.string().min(1, "Dirección requerida"),
+    streetAddress: z.string().optional(), // Ahora opcional
     city: z.string().min(1, "Ciudad requerida"),
     state: z.string().min(1, "Provincia requerida"),
     postalCode: z.string().min(1, "Código postal requerido"),
@@ -16,15 +16,37 @@ export const addressSchema = z
     shippingCompany: z.string().optional(),
     declaredShippingAmount: z.string().optional(),
     deliveryWindow: z.string().optional(),
+    deliveryType: z.nativeEnum(DeliveryType).optional(), // Nuevo campo
+    pickupPointAddress: z.string().optional(), // Nuevo campo
     // Agregamos shippingMethod solo para validación contextual
     shippingMethod: z.nativeEnum(ShippingMethod),
   })
   .superRefine((data, ctx) => {
+    // Validación para shippingCompany cuando es ParcelCompany
     if (data.shippingMethod === ShippingMethod.ParcelCompany && !data.shippingCompany) {
       ctx.addIssue({
         path: ["shippingCompany"],
         code: z.ZodIssueCode.custom,
         message: "Transporte / Empresa de encomienda es requerido",
+      });
+    }
+
+    // Validación condicional para tipos de entrega
+    const deliveryType = data.deliveryType || DeliveryType.HomeDelivery; // Por defecto HOME_DELIVERY
+
+    if (deliveryType === DeliveryType.HomeDelivery && !data.streetAddress) {
+      ctx.addIssue({
+        path: ["streetAddress"],
+        code: z.ZodIssueCode.custom,
+        message: "La dirección es obligatoria para entrega a domicilio",
+      });
+    }
+
+    if (deliveryType === DeliveryType.PickupPoint && !data.pickupPointAddress) {
+      ctx.addIssue({
+        path: ["pickupPointAddress"],
+        code: z.ZodIssueCode.custom,
+        message: "La dirección del punto de retiro es obligatoria",
       });
     }
   });

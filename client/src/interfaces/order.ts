@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentMethod, ShippingMethod } from "@/enums/order.enum";
+import { OrderStatus, PaymentMethod, ShippingMethod, DeliveryType } from "@/enums/order.enum";
 import { UserRole, UserStatus } from "@/enums/user.enum";
 
 export interface Order {
@@ -55,13 +55,15 @@ export interface ShippingAddress {
   email: string;
   phoneNumber: string;
   dni: string;
-  streetAddress: string;
+  streetAddress?: string; // Ahora opcional
   city: string;
   state: string;
   postalCode: string;
   shippingCompany?: string;
   declaredShippingAmount?: string;
   deliveryWindow?: string;
+  deliveryType?: DeliveryType; // Nuevo campo
+  pickupPointAddress?: string; // Nuevo campo
 }
 
 export interface CreateOrderPayload {
@@ -73,13 +75,15 @@ export interface CreateOrderPayload {
     email: string;
     phoneNumber: string;
     dni: string;
-    streetAddress: string;
+    streetAddress?: string; // Ahora opcional
     city: string;
     state: string;
     postalCode: string;
     shippingCompany?: string;
     declaredShippingAmount?: string;
     deliveryWindow?: string;
+    deliveryType?: DeliveryType; // Nuevo campo
+    pickupPointAddress?: string; // Nuevo campo
   };
   paymentMethod: PaymentMethod;
 }

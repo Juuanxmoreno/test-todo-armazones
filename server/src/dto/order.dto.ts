@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentMethod, ShippingMethod } from '@enums/order.enum';
+import { OrderStatus, PaymentMethod, ShippingMethod, DeliveryType } from '@enums/order.enum';
 import { IAddress } from '@interfaces/address';
 import { Types } from 'mongoose';
 
@@ -98,13 +98,15 @@ export interface AddressResponse {
   email: string;
   phoneNumber: string;
   dni: string;
-  streetAddress: string;
+  streetAddress?: string | undefined; // Ahora opcional
   city: string;
   state: string;
   postalCode: string;
   shippingCompany?: string | undefined;
   declaredShippingAmount?: string | undefined;
   deliveryWindow?: string | undefined;
+  deliveryType?: DeliveryType | undefined; // Nuevo campo
+  pickupPointAddress?: string | undefined; // Nuevo campo
 }
 
 // DTO de respuesta general para una orden

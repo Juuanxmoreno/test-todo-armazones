@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { DeliveryType } from '@enums/order.enum';
 
 export interface IAddress {
   userId: Types.ObjectId;
@@ -8,11 +9,13 @@ export interface IAddress {
   email: string;
   phoneNumber: string;
   dni: string;
-  streetAddress: string;
+  streetAddress?: string; // Opcional cuando es pickup point
   city: string;
   state: string;
   postalCode: string;
   shippingCompany?: string;
   declaredShippingAmount?: string;
   deliveryWindow?: string;
+  deliveryType?: DeliveryType; // Nuevo campo para tipo de entrega
+  pickupPointAddress?: string; // Dirección del punto de retiro cuando es PICKUP_POINT
 }

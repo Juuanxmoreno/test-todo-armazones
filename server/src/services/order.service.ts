@@ -287,7 +287,7 @@ export class OrderService {
   }
 
   private mapAddressToResponseDto(address: IAddressDocument | Types.ObjectId): AddressResponse {
-    if (!address || typeof address !== 'object' || !('streetAddress' in address)) {
+    if (!address || typeof address !== 'object' || !('firstName' in address)) {
       throw new Error('La dirección no está populada correctamente');
     }
     const a = address as IAddressDocument;
@@ -305,6 +305,8 @@ export class OrderService {
       shippingCompany: a.shippingCompany,
       declaredShippingAmount: a.declaredShippingAmount,
       deliveryWindow: a.deliveryWindow,
+      deliveryType: a.deliveryType,
+      pickupPointAddress: a.pickupPointAddress,
     };
   }
 
