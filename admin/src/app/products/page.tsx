@@ -162,9 +162,18 @@ const ProductsPage = () => {
                     {product.subcategory.name}
                   </div>
                   <div>
-                    <span className="text-sm text-[#666666]">
-                      Precio: {formatCurrency(product.variants[0].priceUSD, "es-US", "USD")}
-                    </span>
+                    <div className="text-sm text-[#666666]">Precioss:</div>
+                    <div className="text-sm text-[#666666] space-y-1">
+                      {product.variants && product.variants.length > 0 ? (
+                        product.variants.map((variant) => (
+                          <div key={variant.id}>
+                            {variant.color?.name ?? "-"}: {formatCurrency(variant.priceUSD, "es-US", "USD")}
+                          </div>
+                        ))
+                      ) : (
+                        <div>-</div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-sm text-[#666666]">
@@ -240,9 +249,17 @@ const ProductsPage = () => {
                     {product.subcategory.name}
                   </div>
                   <div>
-                    <span className="text-sm text-[#666666]">
-                      Precio: {formatCurrency(product.variants[0].priceUSD, "es-US", "USD")}
-                    </span>
+                    <div className="text-sm text-[#666666] space-y-1">
+                      {product.variants && product.variants.length > 0 ? (
+                        product.variants.map((variant) => (
+                          <div key={variant.id}>
+                            {variant.color?.name ?? "-"}: {formatCurrency(variant.priceUSD, "es-US", "USD")}
+                          </div>
+                        ))
+                      ) : (
+                        <div>-</div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-sm text-[#666666]">
@@ -299,9 +316,17 @@ const ProductsPage = () => {
                   {product.subcategory.name}
                 </div>
                 <div>
-                  <span className="text-sm text-[#666666]">
-                    Precio: {formatCurrency(product.variants[0].priceUSD, "es-US", "USD")}
-                  </span>
+                  <div className="text-sm text-[#666666] space-y-1">
+                    {product.variants && product.variants.length > 0 ? (
+                      product.variants.map((variant) => (
+                        <div key={variant.id}>
+                          {variant.color?.name ?? "-"}: {formatCurrency(variant.priceUSD, "es-US", "USD")}
+                        </div>
+                      ))
+                    ) : (
+                      <div>-</div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span className="text-sm text-[#666666]">

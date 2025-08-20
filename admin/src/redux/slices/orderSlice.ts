@@ -28,7 +28,7 @@ export interface CreateOrderAdminPayload {
   userId: string;
   items: CreateOrderItemAdminPayload[];
   shippingMethod: string;
-  shippingAddress: any;
+  shippingAddress: ShippingAddress;
   paymentMethod: string;
   deliveryWindow?: string;
   declaredShippingAmount?: string;
@@ -66,7 +66,8 @@ import {
   BulkUpdateOrderStatusPayload,
   BulkUpdateOrderStatusResponse,
   StockAvailabilityResponse,
-  OrderStatusUpdateResult
+  OrderStatusUpdateResult,
+  ShippingAddress
 } from "@/interfaces/order";
 import { ApiResponse, getErrorMessage } from "@/types/api";
 import { OrderStatus } from "@/enums/order.enum";

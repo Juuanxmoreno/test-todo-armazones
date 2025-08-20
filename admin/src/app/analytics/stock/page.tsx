@@ -1,21 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { AppDispatch, RootState } from "@/redux/store";
-import {
-  fetchStockValuation,
-  fetchProductStockAnalytics,
-  fetchLowStockAlerts,
-  fetchCategoryStockAnalytics,
-} from "@/redux/slices/analyticsSlice";
+import React, { useState } from "react";
 import {
   Package,
   DollarSign,
   TrendingUp,
   AlertTriangle,
   BarChart3,
-  Eye,
   RefreshCw,
   Grid3X3,
   ShoppingBag,
@@ -23,13 +14,34 @@ import {
   Users,
 } from "lucide-react";
 import { AnalyticsTabNavigation } from "@/components/analytics";
+import { useStockAnalytics } from "@/hooks/useStockAnalytics";
 
 const StockAnalyticsPage = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const { stockAnalytics } = useSelector((state: RootState) => state.analytics);
-  
-  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Usar el hook de stock analytics
+  const {
+    // Datos
+    stockValuation,
+    productAnalytics,
+    lowStockAlerts,
+    categoryAnalytics,
+
+    // Estados de carga
+    isLoadingAny,
+    isLoadingValuation,
+    isLoadingProductAnalytics,
+    isLoadingLowStockAlerts,
+    isLoadingCategoryAnalytics,
+
+    // Funciones
+    refreshAllStockData,
+
+    // Helpers
+    formatCurrency,
+    formatNumber,
+    getStockBadgeColor,
+  } = useStockAnalytics();
 
   const tabs = [
     {
@@ -52,46 +64,8 @@ const StockAnalyticsPage = () => {
     },
   ];
 
-  useEffect(() => {
-    loadAllData();
-  }, [dispatch]);
-
-  const loadAllData = async () => {
-    try {
-      await Promise.all([
-        dispatch(fetchStockValuation()),
-        dispatch(fetchProductStockAnalytics({ limit: 10 })),
-        dispatch(fetchLowStockAlerts({ threshold: 10, limit: 10 })),
-        dispatch(fetchCategoryStockAnalytics()),
-      ]);
-    } catch (error) {
-      console.error("Error loading stock analytics data:", error);
-    }
-  };
-
   const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadAllData();
-    setRefreshing(false);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat("en-US").format(num);
-  };
-
-  const getStockBadgeColor = (stock: number) => {
-    if (stock === 0) return "bg-red-100 text-red-800";
-    if (stock <= 5) return "bg-red-100 text-red-800";
-    if (stock <= 10) return "bg-yellow-100 text-yellow-800";
-    return "bg-green-100 text-green-800";
+    await refreshAllStockData();
   };
 
   const StockBadge = ({ stock, className = "" }: { stock: number; className?: string }) => (
@@ -132,10 +106,10 @@ const StockAnalyticsPage = () => {
             </div>
             <button
               onClick={handleRefresh}
-              disabled={refreshing}
+              disabled={isLoadingAny}
               className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${isLoadingAny ? "animate-spin" : ""}`} />
               <span>Actualizar</span>
             </button>
           </div>
@@ -177,9 +151,9 @@ const StockAnalyticsPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard
                 title="Total Items"
-                value={stockAnalytics.loading.valuation 
+                value={isLoadingValuation 
                   ? "..."
-                  : formatNumber(stockAnalytics.valuation?.totalItems || 0)
+                  : formatNumber(stockValuation?.totalItems || 0)
                 }
                 subtitle="Unidades en stock"
                 icon={<Package className="h-4 w-4 text-gray-400" />}
@@ -187,9 +161,9 @@ const StockAnalyticsPage = () => {
 
               <MetricCard
                 title="Valuación al Costo"
-                value={stockAnalytics.loading.valuation 
+                value={isLoadingValuation 
                   ? "..."
-                  : formatCurrency(stockAnalytics.valuation?.totalValuationAtCost || 0)
+                  : formatCurrency(stockValuation?.totalValuationAtCost || 0)
                 }
                 subtitle="Valor total del inventario"
                 icon={<DollarSign className="h-4 w-4 text-gray-400" />}
@@ -197,9 +171,9 @@ const StockAnalyticsPage = () => {
 
               <MetricCard
                 title="Valuación al Retail"
-                value={stockAnalytics.loading.valuation 
+                value={isLoadingValuation 
                   ? "..."
-                  : formatCurrency(stockAnalytics.valuation?.totalValuationAtRetail || 0)
+                  : formatCurrency(stockValuation?.totalValuationAtRetail || 0)
                 }
                 subtitle="Valor potencial de venta"
                 icon={<TrendingUp className="h-4 w-4 text-gray-400" />}
@@ -207,11 +181,11 @@ const StockAnalyticsPage = () => {
 
               <MetricCard
                 title="Margen de Ganancia"
-                value={stockAnalytics.loading.valuation 
+                value={isLoadingValuation 
                   ? "..."
-                  : `${stockAnalytics.valuation?.profitMarginPercentage?.toFixed(1) || 0}%`
+                  : `${stockValuation?.profitMarginPercentage?.toFixed(1) || 0}%`
                 }
-                subtitle={formatCurrency(stockAnalytics.valuation?.profitMarginTotal || 0) + " de ganancia"}
+                subtitle={formatCurrency(stockValuation?.profitMarginTotal || 0) + " de ganancia"}
                 icon={<BarChart3 className="h-4 w-4 text-gray-400" />}
               />
             </div>
@@ -223,24 +197,24 @@ const StockAnalyticsPage = () => {
                   <AlertTriangle className="h-5 w-5 text-orange-500" />
                   <h2 className="text-lg font-medium text-gray-900">Alertas de Stock Bajo</h2>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    {stockAnalytics.lowStockAlerts?.length || 0}
+                    {lowStockAlerts?.length || 0}
                   </span>
                 </div>
               </div>
               <div className="p-6">
-                {stockAnalytics.loading.lowStockAlerts ? (
+                {isLoadingLowStockAlerts ? (
                   <div className="text-center py-8">
                     <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
                     <p className="text-gray-500">Cargando alertas...</p>
                   </div>
-                ) : stockAnalytics.lowStockAlerts?.length === 0 ? (
+                ) : lowStockAlerts?.length === 0 ? (
                   <div className="text-center py-8">
                     <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p className="text-gray-500">¡Excelente! No hay productos con stock bajo</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {stockAnalytics.lowStockAlerts?.slice(0, 5).map((alert) => (
+                    {lowStockAlerts?.slice(0, 5).map((alert) => (
                       <div key={alert.variantId} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-4">
                           <div 
@@ -278,14 +252,14 @@ const StockAnalyticsPage = () => {
               </div>
             </div>
             <div className="p-6">
-              {stockAnalytics.loading.productAnalytics ? (
+              {isLoadingProductAnalytics ? (
                 <div className="text-center py-8">
                   <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
                   <p className="text-gray-500">Cargando productos...</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {stockAnalytics.productAnalytics?.map((product) => (
+                  {productAnalytics?.map((product) => (
                     <div key={product.productId} className="border rounded-lg p-4">
                       <div className="flex justify-between items-start mb-4">
                         <div>
@@ -346,14 +320,14 @@ const StockAnalyticsPage = () => {
               </div>
             </div>
             <div className="p-6">
-              {stockAnalytics.loading.lowStockAlerts ? (
+              {isLoadingLowStockAlerts ? (
                 <div className="text-center py-8">
                   <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
                   <p className="text-gray-500">Cargando alertas...</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {stockAnalytics.lowStockAlerts?.map((alert) => (
+                  {lowStockAlerts?.map((alert) => (
                     <div key={alert.variantId} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
@@ -391,14 +365,14 @@ const StockAnalyticsPage = () => {
               </div>
             </div>
             <div className="p-6">
-              {stockAnalytics.loading.categoryAnalytics ? (
+              {isLoadingCategoryAnalytics ? (
                 <div className="text-center py-8">
                   <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
                   <p className="text-gray-500">Cargando categorías...</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {stockAnalytics.categoryAnalytics?.map((category) => (
+                  {categoryAnalytics?.map((category) => (
                     <div key={category.categoryId} className="border rounded-lg p-6">
                       <h3 className="text-lg font-semibold mb-4 text-gray-900">{category.categoryName}</h3>
                       <div className="grid grid-cols-2 gap-4">

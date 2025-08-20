@@ -3,6 +3,12 @@ import axiosInstance from "@/utils/axiosInstance";
 import { ApiResponse, getErrorMessage } from "@/types/api";
 import { IGetUsersPaginatedResponse, IUser } from "@/interfaces/user";
 
+// Interfaz temporal para manejar la respuesta del backend que puede tener _id o id
+interface IUserWithPossibleId extends Omit<IUser, 'id'> {
+  id?: string;
+  _id?: string;
+}
+
 
 interface UserState {
   users: IUser[];
@@ -107,11 +113,16 @@ const userSlice = createSlice({
         state.loadingUserByEmail = false;
         state.errorUserByEmail = null;
         // Mapear _id a id si es necesario
-        const user = action.payload as any;
+        const user = action.payload as IUserWithPossibleId;
         if (user && user._id && !user.id) {
-          user.id = user._id;
+          const mappedUser: IUser = {
+            ...user,
+            id: user._id,
+          };
+          state.userByEmail = mappedUser;
+        } else {
+          state.userByEmail = user as IUser;
         }
-        state.userByEmail = user;
       })
       .addCase(fetchUserByEmail.rejected, (state, action) => {
         state.loadingUserByEmail = false;

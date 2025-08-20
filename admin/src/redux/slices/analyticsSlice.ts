@@ -117,7 +117,7 @@ export const fetchStockValuation = createAsyncThunk<
 
     if (response.data.status === "success" && response.data.data) {
       // Extraer solo las métricas, sin la metadata
-      const { meta, ...metrics } = response.data.data;
+      const { ...metrics } = response.data.data;
       return metrics;
     } else {
       return rejectWithValue(

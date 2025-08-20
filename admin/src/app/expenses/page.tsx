@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useExpenses } from '../../hooks/useExpenses';
-import { ExpenseType, Currency, CreateExpenseRequest, IExpense } from '../../interfaces/expense';
+import { ExpenseType, Currency, IExpense } from '../../interfaces/expense';
 import ExpenseCard from '../../components/expenses/ExpenseCard';
 import CreateExpenseForm from '../../components/expenses/CreateExpenseForm';
 import ExpenseFilters from '../../components/expenses/ExpenseFilters';
@@ -19,7 +19,6 @@ const ExpensesPage: React.FC = () => {
     error,
     hasMore,
     getMonthlyExpenses,
-    createExpense,
     clearErrorMessage,
     changeMonth,
     applyFilters,
@@ -27,25 +26,11 @@ const ExpensesPage: React.FC = () => {
   } = useExpenses();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
 
   // Load initial data
   useEffect(() => {
     getMonthlyExpenses();
-  }, []);
-
-  // Handle create expense
-  const handleCreateExpense = async (expenseData: CreateExpenseRequest) => {
-    setCreateLoading(true);
-    try {
-      await createExpense(expenseData);
-      setShowCreateForm(false);
-    } catch (error) {
-      console.error('Error creating expense:', error);
-    } finally {
-      setCreateLoading(false);
-    }
-  };
+  }, [getMonthlyExpenses]);
 
   // Handle filter changes
   const handleFilterChange = (filterType: string, value: string | number | ExpenseType | Currency | undefined) => {

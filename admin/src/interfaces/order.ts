@@ -1,4 +1,9 @@
-import { OrderStatus, PaymentMethod, ShippingMethod } from "@/enums/order.enum";
+import {
+  DeliveryType,
+  OrderStatus,
+  PaymentMethod,
+  ShippingMethod,
+} from "@/enums/order.enum";
 import { UserStatus } from "@/enums/user.enum";
 
 export interface Order {
@@ -66,6 +71,8 @@ export interface ShippingAddress {
   shippingCompany?: string;
   declaredShippingAmount?: string;
   deliveryWindow?: string;
+  deliveryType?: DeliveryType; // Nuevo campo
+  pickupPointAddress?: string; // Nuevo campo
 }
 
 // Payload para actualizar items de la orden
@@ -80,9 +87,9 @@ export interface UpdateOrderPayload {
   orderStatus?: OrderStatus;
   items?: UpdateOrderItemPayload[];
   createdAt?: string;
-  shippingMethod?: string;
-  paymentMethod?: string;
-  shippingAddress?: any;
+  shippingMethod?: ShippingMethod;
+  paymentMethod?: PaymentMethod;
+  shippingAddress?: ShippingAddress;
   deliveryWindow?: string;
   declaredShippingAmount?: string;
   allowViewInvoice?: boolean;

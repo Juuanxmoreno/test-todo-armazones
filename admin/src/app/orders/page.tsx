@@ -4,13 +4,18 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import Link from "next/link";
 import { OrderStatusBadge } from "@/components/atoms/OrderStatusBadge";
-import { OrderStatus, PaymentMethod, ShippingMethod } from "@/enums/order.enum";
+import {
+  DeliveryType,
+  OrderStatus,
+  PaymentMethod,
+  ShippingMethod,
+} from "@/enums/order.enum";
 import useOrders from "@/hooks/useOrders";
 import { debounce } from "@/utils/debounce";
 import { formatCurrency } from "@/utils/formatCurrency";
 import LoadingSpinner from "@/components/atoms/LoadingSpinner";
 import { Eye, X } from "lucide-react";
-import { OrderItem } from "@/interfaces/order";
+import { Order, OrderItem } from "@/interfaces/order";
 import { downloadOrderPDF } from "@/utils/downloadOrderPDF";
 import Image from "next/image";
 
@@ -28,7 +33,7 @@ const OrdersPage = () => {
     bulkUpdateOrderStatusData,
   } = useOrders();
 
-  const [previewOrder, setPreviewOrder] = useState<any | null>(null); // Orden para modal
+  const [previewOrder, setPreviewOrder] = useState<Order | null>(null); // Orden para modal
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [batchAction, setBatchAction] = useState<OrderStatus | "">("");
 
@@ -197,7 +202,7 @@ const OrdersPage = () => {
         <table className="table border border-[#e1e1e1]">
           <thead>
             <tr className="border-b border-[#e1e1e1]">
-              <th>
+              <th className="hidden sm:table-cell">
                 <input
                   type="checkbox"
                   className="checkbox checkbox-neutral"
@@ -213,9 +218,9 @@ const OrdersPage = () => {
                 />
               </th>
               <th className="text-[#222222]">Orden</th>
-              <th className="text-[#222222]">Fecha</th>
+              <th className="hidden sm:table-cell text-[#222222]">Fecha</th>
               <th className="text-[#222222]">Estado</th>
-              <th className="text-[#222222]">Total</th>
+              <th className="hidden sm:table-cell text-[#222222]">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -227,7 +232,7 @@ const OrdersPage = () => {
                   ref={isLast && nextCursor ? lastOrderRef : undefined}
                   className="text-[#333333] border-b border-[#e1e1e1]"
                 >
-                  <td>
+                  <td className="hidden sm:table-cell">
                     <input
                       type="checkbox"
                       className="checkbox checkbox-neutral"
@@ -271,14 +276,18 @@ const OrdersPage = () => {
                         </button>
                       </div>
                     )}
+                    {/* Mobile: show date inside main cell when there's room */}
+                    <div className="sm:hidden mt-1 text-sm text-[#555555]">
+                      {new Date(order.createdAt).toLocaleDateString()}
+                    </div>
                   </td>
-                  <td className="text-[#555555]">
+                  <td className="hidden sm:table-cell text-[#555555]">
                     {new Date(order.createdAt).toLocaleDateString()}
                   </td>
                   <td>
                     <OrderStatusBadge status={order.orderStatus} />
                   </td>
-                  <td className="text-[#555555]">
+                  <td className="hidden sm:table-cell text-[#555555]">
                     {formatCurrency(order.totalAmount, "en-US", "USD")}
                   </td>
                 </tr>
@@ -319,7 +328,7 @@ const OrdersPage = () => {
             className="modal-box max-w-3xl rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] p-0"
             style={{ maxHeight: "80vh", overflowY: "auto" }}
           >
-            <div className="sticky top-0 bg-[#FFFFFF] border-b border-[#e1e1e1] flex justify-between items-center h-12">
+            <div className="sticky top-0 bg-[#FFFFFF] border-b border-[#e1e1e1] flex justify-between items-center h-12 z-30">
               <h3 className="font-bold text-lg text-[#111111] m-0 px-4">
                 Orden #{previewOrder.orderNumber}
               </h3>
@@ -340,8 +349,7 @@ const OrdersPage = () => {
                   Datos del cliente:
                 </h4>
                 <p className="mb-2 text-[#333333]">
-                  <strong>Nombre:</strong> {previewOrder.user.firstName}{" "}
-                  {previewOrder.user.lastName}
+                  <strong>Nombre:</strong> {previewOrder.user.displayName}
                 </p>
                 <p className="mb-2 text-[#333333]">
                   <strong>Email:</strong>{" "}
@@ -353,10 +361,12 @@ const OrdersPage = () => {
                   </a>
                 </p>
                 <p className="mb-2 text-[#333333]">
-                  <strong>DNI:</strong> {previewOrder.user.dni || "N/A"}
+                  <strong>DNI:</strong>{" "}
+                  {previewOrder.shippingAddress.dni || "N/A"}
                 </p>
                 <p className="mb-2 text-[#333333]">
-                  <strong>Teléfono:</strong> {previewOrder.user.phone || "N/A"}
+                  <strong>Teléfono:</strong>{" "}
+                  {previewOrder.shippingAddress.phoneNumber || "N/A"}
                 </p>
               </div>
 
@@ -370,13 +380,36 @@ const OrdersPage = () => {
                   {previewOrder.shippingAddress.firstName}{" "}
                   {previewOrder.shippingAddress.lastName}
                 </p>
-                <p className="mb-2 text-[#333333]">
-                  <strong>Dirección:</strong>{" "}
-                  {previewOrder.shippingAddress.streetAddress},{" "}
-                  {previewOrder.shippingAddress.city},{" "}
-                  {previewOrder.shippingAddress.state}{" "}
-                  {previewOrder.shippingAddress.postalCode}
-                </p>
+
+                {/* Tipo de entrega */}
+                {previewOrder.shippingAddress.deliveryType && (
+                  <p className="mb-2 text-[#333333]">
+                    <strong>Tipo de entrega:</strong>{" "}
+                    {previewOrder.shippingAddress.deliveryType ===
+                    DeliveryType.HomeDelivery
+                      ? "Entrega a domicilio"
+                      : "Punto de retiro"}
+                  </p>
+                )}
+
+                {/* Dirección de entrega o punto de retiro */}
+                {previewOrder.shippingAddress.deliveryType ===
+                  DeliveryType.PickupPoint &&
+                previewOrder.shippingAddress.pickupPointAddress ? (
+                  <p className="mb-2 text-[#333333]">
+                    <strong>Punto de retiro:</strong>{" "}
+                    {previewOrder.shippingAddress.pickupPointAddress}
+                  </p>
+                ) : (
+                  <p className="mb-2 text-[#333333]">
+                    <strong>Dirección:</strong>{" "}
+                    {previewOrder.shippingAddress.streetAddress},{" "}
+                    {previewOrder.shippingAddress.city},{" "}
+                    {previewOrder.shippingAddress.state}{" "}
+                    {previewOrder.shippingAddress.postalCode}
+                  </p>
+                )}
+
                 <p className="mb-2 text-[#333333]">
                   <strong>Método de envío:</strong>{" "}
                   {previewOrder.shippingMethod ===
@@ -385,6 +418,7 @@ const OrdersPage = () => {
                   {previewOrder.shippingMethod === ShippingMethod.Motorcycle &&
                     "Moto"}
                 </p>
+
                 {previewOrder.shippingAddress &&
                   previewOrder.shippingAddress.shippingCompany && (
                     <p className="mb-2 text-[#333333]">
@@ -456,7 +490,7 @@ const OrdersPage = () => {
                               </td>
                               <td>{item.quantity}</td>
                               <td>
-                                {formatCurrency(item.subTotal, "en-US", "USD")}
+                                {formatCurrency(item.subTotal, "es-AR", "ARS")}
                               </td>
                             </tr>
                           )
@@ -468,21 +502,21 @@ const OrdersPage = () => {
               )}
               <p className="mb-2 text-[#333333]">
                 <strong>Subtotal:</strong>{" "}
-                {formatCurrency(previewOrder.subTotal, "en-US", "USD")}
+                {formatCurrency(previewOrder.subTotal, "es-AR", "ARS")}
               </p>
               {previewOrder.bankTransferExpense && (
                 <p className="mb-2 text-[#333333]">
                   <strong>Gastos de Transferencia Bancaria:</strong>{" "}
                   {formatCurrency(
                     previewOrder.bankTransferExpense,
-                    "en-US",
-                    "USD"
+                    "es-AR",
+                    "ARS"
                   )}
                 </p>
               )}
               <p className="mb-2 text-[#333333]">
                 <strong>Total:</strong>{" "}
-                {formatCurrency(previewOrder.totalAmount, "en-US", "USD")}
+                {formatCurrency(previewOrder.totalAmount, "es-AR", "ARS")}
               </p>
             </div>
           </div>

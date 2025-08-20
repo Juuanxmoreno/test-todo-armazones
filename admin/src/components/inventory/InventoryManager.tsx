@@ -3,6 +3,10 @@ import { useInventory } from "../../hooks/useInventory";
 import { StockSummaryCard } from "./StockSummaryCard";
 import { StockMovementHistoryCard } from "./StockMovementHistoryCard";
 import { StockOperationForms } from "./StockOperationForms";
+import type {
+  CreateStockEntryPayload,
+  CreateStockExitPayload,
+} from "../../interfaces/inventory";
 
 interface InventoryManagerProps {
   productId: string;
@@ -68,7 +72,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     setSelectedVariantId(variantId);
   };
 
-  const handleCreateEntry = async (payload: any) => {
+  const handleCreateEntry = async (payload: CreateStockEntryPayload) => {
     const success = await createEntryAndRefresh(payload, productId);
     if (success) {
       // Actualizar la lista de movimientos si hay una variante seleccionada
@@ -83,7 +87,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     return success;
   };
 
-  const handleCreateExit = async (payload: any) => {
+  const handleCreateExit = async (payload: CreateStockExitPayload) => {
     const success = await createExitAndRefresh(payload, productId);
     if (success) {
       // Actualizar la lista de movimientos si hay una variante seleccionada

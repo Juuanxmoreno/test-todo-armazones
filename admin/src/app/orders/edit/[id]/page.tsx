@@ -5,8 +5,9 @@ import useOrders from "@/hooks/useOrders";
 import type {
   ShippingAddress,
   Order,
-  UpdateOrderItemPayload,
+  UpdateOrderPayload,
 } from "@/interfaces/order";
+import type { ProductVariant } from "@/interfaces/product";
 import { ShippingMethod, PaymentMethod, OrderStatus } from "@/enums/order.enum";
 import { useProducts } from "@/hooks/useProducts";
 import { Trash } from "lucide-react";
@@ -135,7 +136,7 @@ const EditOrderPage = () => {
       try {
         const updatePayload = {
           orderId: form.id,
-          paymentMethod: value,
+          paymentMethod: value as PaymentMethod,
         };
 
         const result = await updateOrderData(updatePayload).unwrap();
@@ -262,7 +263,7 @@ const EditOrderPage = () => {
   };
 
   // Agregar ProductVariant a la orden
-  const handleAddVariant = async (variant: any, product: any) => {
+  const handleAddVariant = async (variant: ProductVariant) => {
     if (!form) return;
     if (form.items.some((v) => v.productVariant.id === variant.id)) return;
 
@@ -363,52 +364,6 @@ const EditOrderPage = () => {
     }
   };
 
-  // Función para calcular las operaciones necesarias
-  const calculateItemOperations = (): UpdateOrderItemPayload[] => {
-    if (!form || !originalForm) return [];
-
-    const operations: UpdateOrderItemPayload[] = [];
-    const currentItems = new Map(
-      form.items.map((item) => [item.productVariant.id, item.quantity])
-    );
-    const originalItems = new Map(
-      originalForm.items.map((item) => [item.productVariant.id, item.quantity])
-    );
-
-    // Detectar items eliminados
-    for (const [variantId] of originalItems) {
-      if (!currentItems.has(variantId)) {
-        operations.push({
-          productVariantId: variantId,
-          action: "remove",
-        });
-      }
-    }
-
-    // Detectar items nuevos y modificados
-    for (const [variantId, newQuantity] of currentItems) {
-      const originalQuantity = originalItems.get(variantId);
-
-      if (originalQuantity === undefined) {
-        // Item nuevo
-        operations.push({
-          productVariantId: variantId,
-          action: "add",
-          quantity: newQuantity,
-        });
-      } else if (originalQuantity !== newQuantity) {
-        // Item modificado
-        operations.push({
-          productVariantId: variantId,
-          action: "set",
-          quantity: newQuantity,
-        });
-      }
-    }
-
-    return operations;
-  };
-
   // Verificar si hay cambios pendientes
   const hasChanges = () => {
     if (!form || !originalForm) return false;
@@ -463,7 +418,7 @@ const EditOrderPage = () => {
     setIsSubmitting(true);
 
     try {
-      const updatePayload: any = {
+      const updatePayload: UpdateOrderPayload = {
         orderId: form.id,
       };
 
@@ -883,7 +838,7 @@ const EditOrderPage = () => {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    handleProductSearch(e as any);
+                    handleProductSearch(e as React.FormEvent);
                   }
                 }}
                 className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
@@ -926,7 +881,7 @@ const EditOrderPage = () => {
                           <button
                             key={variant.id}
                             className="btn btn-xs btn-outline text-[#222222] border-[#bdbdbd] bg-white rounded-none"
-                            onClick={() => handleAddVariant(variant, product)}
+                            onClick={() => handleAddVariant(variant)}
                             disabled={
                               form.items.some(
                                 (v) => v.productVariant.id === variant.id
@@ -966,7 +921,7 @@ const EditOrderPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {form.items.map((item, index) => (
+                    {form.items.map((item) => (
                       <tr
                         key={item.productVariant.id}
                         className="text-[#222222]"

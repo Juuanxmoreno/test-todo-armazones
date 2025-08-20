@@ -158,6 +158,7 @@ function CreateOrderPage() {
       },
       (err) => {
         setSuccessMsg("");
+        console.error("Error al crear la orden:", err);
       }
     );
   };
@@ -353,7 +354,7 @@ function CreateOrderPage() {
               "state",
               "postalCode",
               "companyName",
-            ].map((name, idx) => (
+            ].map((name) => (
               <div
                 key={name}
                 className={

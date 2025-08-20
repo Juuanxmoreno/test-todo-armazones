@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   ShoppingCart,
   Package,
@@ -161,7 +162,7 @@ const AnalyticsPage = () => {
             Acceso Rápido
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <a
+            <Link
               href="/analytics/orders"
               className="flex items-center justify-between p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
             >
@@ -172,9 +173,9 @@ const AnalyticsPage = () => {
                 </span>
               </div>
               <TrendingUp className="h-4 w-4 text-blue-600 group-hover:translate-x-1 transition-transform" />
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/analytics/users"
               className="flex items-center justify-between p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors group"
             >
@@ -185,9 +186,9 @@ const AnalyticsPage = () => {
                 </span>
               </div>
               <TrendingUp className="h-4 w-4 text-purple-600 group-hover:translate-x-1 transition-transform" />
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/analytics/stock"
               className="flex items-center justify-between p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors group"
             >
@@ -198,7 +199,7 @@ const AnalyticsPage = () => {
                 </span>
               </div>
               <TrendingUp className="h-4 w-4 text-green-600 group-hover:translate-x-1 transition-transform" />
-            </a>
+            </Link>
           </div>
         </div>
 

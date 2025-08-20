@@ -103,7 +103,7 @@ export const StockOperationForms: React.FC<StockOperationFormsProps> = ({
     if (!validateEntryForm()) return;
 
     const reason = entryData.reason;
-    const payload: any = {
+    const payload: CreateStockEntryPayload = {
       productVariantId,
       quantity: parseFloat(entryData.quantity),
       reason,

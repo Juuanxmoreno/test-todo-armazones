@@ -11,7 +11,6 @@ import {
   Menu,
   X,
   LogOut,
-  LayoutDashboard,
   ChartArea,
 } from "lucide-react";
 import Image from "next/image";

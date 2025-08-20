@@ -16,17 +16,17 @@ const UserAnalyticsLineChart: React.FC<UserAnalyticsLineChartProps> = ({
   isLoading = false,
   height = 400,
 }) => {
-  const metricLabels = {
+  const metricLabels = useMemo(() => ({
     totalRevenue: 'Revenue Total',
     totalOrders: 'Total de Órdenes',
     averageOrderValue: 'Valor Promedio por Orden',
-  };
+  }), []);
 
-  const metricUnits = {
+  const metricUnits = useMemo(() => ({
     totalRevenue: '$',
     totalOrders: '',
     averageOrderValue: '$',
-  };
+  }), []);
 
   const chartOption = useMemo(() => {
     const xAxisData = data.map(point => point.label);
@@ -50,12 +50,12 @@ const UserAnalyticsLineChart: React.FC<UserAnalyticsLineChartProps> = ({
         textStyle: {
           color: '#374151',
         },
-        formatter: (params: any) => {
+        formatter: (params: { axisValue: string; color: string; value: number }[]) => {
           const param = params[0];
           const value = param.value;
           const unit = metricUnits[selectedMetric];
           
-          let formattedValue = value;
+          let formattedValue: string = value.toString();
           if (unit === '$') {
             formattedValue = new Intl.NumberFormat('es-AR', {
               style: 'currency',
@@ -184,7 +184,7 @@ const UserAnalyticsLineChart: React.FC<UserAnalyticsLineChartProps> = ({
       animationDuration: 1000,
       animationEasing: 'cubicOut',
     };
-  }, [data, selectedMetric]);
+  }, [data, selectedMetric, metricLabels, metricUnits]);
 
   if (isLoading) {
     return (

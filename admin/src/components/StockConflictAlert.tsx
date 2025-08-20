@@ -35,7 +35,7 @@ const StockConflictAlert: React.FC<StockConflictAlertProps> = ({
           </p>
           
           <div className="space-y-2 mb-4">
-            {conflicts.map((conflict, index) => (
+            {conflicts.map((conflict) => (
               <div
                 key={conflict.productVariantId}
                 className="bg-white border border-amber-200 rounded-md p-3"

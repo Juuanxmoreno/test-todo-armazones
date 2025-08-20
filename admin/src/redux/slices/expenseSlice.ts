@@ -1,7 +1,7 @@
 import { CreateExpenseRequest, ExpenseListResponse, ExpenseState, IExpense, MonthlyExpenseFilters } from '../../interfaces/expense';
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axiosInstance from '../../utils/axiosInstance';
-import { ApiResponse, getErrorMessage, isApiError } from '../../types/api';
+import { ApiResponse, getErrorMessage } from '../../types/api';
 
 
 // Estado inicial
