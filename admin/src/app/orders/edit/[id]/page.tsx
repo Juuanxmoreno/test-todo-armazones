@@ -1,18 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import useOrders from "@/hooks/useOrders";
 import type {
   ShippingAddress,
   Order,
   UpdateOrderPayload,
+  OrderItem,
 } from "@/interfaces/order";
 import type { ProductVariant } from "@/interfaces/product";
 import { ShippingMethod, PaymentMethod, OrderStatus } from "@/enums/order.enum";
 import { useProducts } from "@/hooks/useProducts";
-import { Trash } from "lucide-react";
+import { Trash, Edit3 } from "lucide-react";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { useUsersAnalytics } from "@/hooks/useUsersAnalytics";
+import EditItemPricesModal from "@/components/EditItemPricesModal";
 import { AnalyticsPeriod } from "@/enums/analytics.enum";
 import StockConflictAlert from "@/components/StockConflictAlert";
 import PendingPaymentInfo from "@/components/PendingPaymentInfo";
@@ -31,19 +34,40 @@ const EditOrderPage = () => {
     stockCheckLoading,
     stockCheckError,
     checkStockAvailability,
-    clearStockInfo
+  clearStockInfo,
+  clearOrderById
   } = useOrders();
   const [form, setForm] = useState<Order | null>(null);
   const [originalForm, setOriginalForm] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [productQuery, setProductQuery] = useState("");
-  const [isInitialized, setIsInitialized] = useState(false);
+  
   const [itemOperationLoading, setItemOperationLoading] = useState<
     string | null
   >(null);
   const [isPaymentMethodUpdating, setIsPaymentMethodUpdating] = useState(false);
   const [isOrderStatusUpdating, setIsOrderStatusUpdating] = useState(false);
   const [isAllowViewInvoiceUpdating, setIsAllowViewInvoiceUpdating] = useState(false);
+  
+  // Estado para manejar errores inline
+  const [errors, setErrors] = useState<{
+    id: string;
+    message: string;
+    type: 'error' | 'success' | 'warning';
+    timestamp: number;
+  }[]>([]);
+  
+  // Estados para el modal de edición de precios
+  const [editPricesModal, setEditPricesModal] = useState<{
+    isOpen: boolean;
+    item: OrderItem | null;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    item: null,
+    loading: false,
+  });
+
   const { searchProducts, searchResults, searchLoading, clearSearchResults } =
     useProducts();
   
@@ -54,19 +78,32 @@ const EditOrderPage = () => {
     isLoadingUserDetails
   } = useUsersAnalytics();
 
+  // Cada vez que cambia el id en la ruta, limpiar el formulario local
+  // y solicitar la orden al store/backend. Esto evita mostrar datos
+  // de la orden anterior mientras se carga la nueva.
   useEffect(() => {
-    if (id && !isInitialized) {
+    if (id) {
+      setForm(null);
+      setOriginalForm(null);
       getOrderById(id as string);
     }
-  }, [id, getOrderById, isInitialized]);
 
+    return () => {
+      // Limpiar orderById en el store cuando se desmonta o cambia el id
+      clearOrderById();
+    };
+  }, [id, getOrderById, clearOrderById]);
+
+  // Sincronizar el orderFromStore con el formulario local solo si
+  // el order recibido corresponde al id actual de la ruta. Esto
+  // previene condiciones de carrera donde el store contiene una
+  // orden previa y se renderiza incorrectamente para la nueva ruta.
   useEffect(() => {
-    if (orderById && !isInitialized) {
+    if (orderById && id && orderById.id === id) {
       setForm(orderById);
       setOriginalForm(orderById);
-      setIsInitialized(true);
     }
-  }, [orderById, isInitialized]);
+  }, [orderById, id]);
 
   // Load user analytics when form is available
   useEffect(() => {
@@ -88,9 +125,53 @@ const EditOrderPage = () => {
     }
   }, [form?.id, form?.orderStatus, checkStockAvailability, clearStockInfo]);
 
-  if (!isInitialized || loading || !form)
-    return <div className="p-8">Cargando orden...</div>;
-  if (error) return <div className="p-8 text-red-500">{error}</div>;
+  // Funciones helper para manejar errores
+  const addError = (message: string, type: 'error' | 'success' | 'warning' = 'error') => {
+    const newError = {
+      id: Date.now().toString(),
+      message,
+      type,
+      timestamp: Date.now(),
+    };
+    setErrors(prev => [...prev, newError]);
+    
+    // Auto-remover después de 5 segundos para success y warning, 8 segundos para error
+    setTimeout(() => {
+      setErrors(prev => prev.filter(err => err.id !== newError.id));
+    }, type === 'error' ? 8000 : 5000);
+  };
+
+  const removeError = (id: string) => {
+    setErrors(prev => prev.filter(err => err.id !== id));
+  };
+
+  const addSuccess = (message: string) => addError(message, 'success');
+  const addWarning = (message: string) => addError(message, 'warning');
+
+  if (loading || !form) return <div className="p-8">Cargando orden...</div>;
+  if (error) return (
+    <div className="min-h-screen bg-[#FFFFFF] pt-4 pb-10 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+              <span className="text-red-600 font-bold">!</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-red-800">Error al cargar la orden</h3>
+              <p className="text-red-600 mt-1">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // Handler para cambios en los campos de dirección
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,12 +225,10 @@ const EditOrderPage = () => {
         // Actualizar estado local con la respuesta del servidor
         setForm(result);
         setOriginalForm(result);
+        addSuccess('Método de pago actualizado correctamente');
       } catch (error) {
         console.error("Error al actualizar método de pago:", error);
-        alert(
-          "Error al actualizar el método de pago: " +
-            (error || "Error desconocido")
-        );
+        addError(`Error al actualizar el método de pago: ${error || "Error desconocido"}`);
 
         // Revertir el cambio local en caso de error
         if (originalForm) {
@@ -177,12 +256,10 @@ const EditOrderPage = () => {
         // Actualizar estado local con la respuesta del servidor
         setForm(result);
         setOriginalForm(result);
+        addSuccess('Estado de la orden actualizado correctamente');
       } catch (error) {
         console.error("Error al actualizar estado de la orden:", error);
-        alert(
-          "Error al actualizar el estado de la orden: " +
-            (error || "Error desconocido")
-        );
+        addError(`Error al actualizar el estado de la orden: ${error || "Error desconocido"}`);
 
         // Revertir el cambio local en caso de error
         if (originalForm) {
@@ -238,12 +315,10 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
+      addSuccess(`Permiso de ver factura ${checked ? 'habilitado' : 'deshabilitado'} correctamente`);
     } catch (error) {
       console.error("Error al actualizar permiso de ver factura:", error);
-      alert(
-        "Error al actualizar el permiso de ver factura: " +
-          (error || "Error desconocido")
-      );
+      addError(`Error al actualizar el permiso de ver factura: ${error || "Error desconocido"}`);
 
       // Revertir el cambio local en caso de error
       if (originalForm) {
@@ -265,7 +340,10 @@ const EditOrderPage = () => {
   // Agregar ProductVariant a la orden
   const handleAddVariant = async (variant: ProductVariant) => {
     if (!form) return;
-    if (form.items.some((v) => v.productVariant.id === variant.id)) return;
+    if (form.items.some((v) => v.productVariant.id === variant.id)) {
+      addWarning('Este producto ya está en la orden');
+      return;
+    }
 
     setItemOperationLoading(variant.id);
 
@@ -286,9 +364,10 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
+      addSuccess(`Producto agregado correctamente`);
     } catch (error) {
       console.error("Error al agregar variante:", error);
-      alert("Error al agregar el producto: " + (error || "Error desconocido"));
+      addError(`Error al agregar el producto: ${error || "Error desconocido"}`);
     } finally {
       setItemOperationLoading(null);
     }
@@ -316,9 +395,10 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
+      addSuccess('Producto eliminado correctamente');
     } catch (error) {
       console.error("Error al eliminar variante:", error);
-      alert("Error al eliminar el producto: " + (error || "Error desconocido"));
+      addError(`Error al eliminar el producto: ${error || "Error desconocido"}`);
     } finally {
       setItemOperationLoading(null);
     }
@@ -354,13 +434,72 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
+      addSuccess(`Cantidad actualizada a ${newQuantity}`);
     } catch (error) {
       console.error("Error al cambiar cantidad:", error);
-      alert(
-        "Error al actualizar la cantidad: " + (error || "Error desconocido")
-      );
+      addError(`Error al actualizar la cantidad: ${error || "Error desconocido"}`);
     } finally {
       setItemOperationLoading(null);
+    }
+  };
+
+  // Abrir modal de edición de precios
+  const handleEditPrices = (item: OrderItem) => {
+    setEditPricesModal({
+      isOpen: true,
+      item,
+      loading: false,
+    });
+  };
+
+  // Cerrar modal de edición de precios
+  const handleClosePricesModal = () => {
+    setEditPricesModal({
+      isOpen: false,
+      item: null,
+      loading: false,
+    });
+  };
+
+  // Guardar cambios de precios
+  const handleSavePrices = async (
+    productVariantId: string,
+    data: {
+      action: "update_prices" | "update_all";
+      costUSDAtPurchase?: number;
+      priceUSDAtPurchase?: number;
+      subTotal?: number;
+      gainUSD?: number;
+      quantity?: number;
+    }
+  ) => {
+    if (!form) return;
+
+    setEditPricesModal(prev => ({ ...prev, loading: true }));
+
+    try {
+      const updatePayload = {
+        orderId: form.id,
+        items: [
+          {
+            productVariantId,
+            ...data,
+          },
+        ],
+      };
+
+      const result = await updateOrderData(updatePayload).unwrap();
+
+      // Actualizar estado local con la respuesta del servidor
+      setForm(result);
+      setOriginalForm(result);
+      addSuccess('Precios actualizados correctamente');
+    } catch (error) {
+      console.error("Error al actualizar precios:", error);
+      addError(`Error al actualizar precios: ${error || "Error desconocido"}`);
+      throw error; // Re-throw para que el modal maneje el error
+    } finally {
+      setEditPricesModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -493,12 +632,13 @@ const EditOrderPage = () => {
         // Actualizar el estado local con los datos del servidor
         setForm(result);
         setOriginalForm(result);
+        addSuccess('Orden actualizada correctamente');
       } else {
-        alert("No hay cambios que guardar");
+        addWarning('No hay cambios que guardar');
       }
     } catch (error) {
       console.error("Error al actualizar la orden:", error);
-      alert("Error al actualizar la orden: " + (error || "Error desconocido"));
+      addError(`Error al actualizar la orden: ${error || "Error desconocido"}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -529,6 +669,51 @@ const EditOrderPage = () => {
           </button>
         </div>
 
+        {/* Sistema de notificaciones/errores inline */}
+        {errors.length > 0 && (
+          <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+            {errors.map((error) => (
+              <div
+                key={error.id}
+                className={`
+                  flex items-center justify-between p-4 rounded-lg shadow-lg border
+                  ${error.type === 'error' 
+                    ? 'bg-red-50 border-red-200 text-red-800' 
+                    : error.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-800'
+                    : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                  }
+                  animate-in slide-in-from-right duration-300
+                `}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    error.type === 'error' 
+                      ? 'bg-red-500' 
+                      : error.type === 'success'
+                      ? 'bg-green-500'
+                      : 'bg-yellow-500'
+                  }`} />
+                  <span className="text-sm font-medium">{error.message}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeError(error.id)}
+                  className={`ml-2 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hover:opacity-70 ${
+                    error.type === 'error' 
+                      ? 'text-red-600 hover:bg-red-100' 
+                      : error.type === 'success'
+                      ? 'text-green-600 hover:bg-green-100'
+                      : 'text-yellow-600 hover:bg-yellow-100'
+                  }`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Alerta de conflictos de stock para órdenes PENDING_PAYMENT */}
         {form.orderStatus === OrderStatus.PendingPayment && stockAvailability && stockAvailability.hasConflicts && (
           <StockConflictAlert
@@ -555,6 +740,7 @@ const EditOrderPage = () => {
             <div className="flex items-center gap-2">
               <span className="text-sm text-red-700">Error al verificar stock: {stockCheckError}</span>
               <button
+                type="button"
                 onClick={handleRefreshStock}
                 className="text-sm text-red-600 underline hover:no-underline"
               >
@@ -578,6 +764,7 @@ const EditOrderPage = () => {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={handleRefreshStock}
                 disabled={stockCheckLoading}
                 className="text-sm text-green-600 underline hover:no-underline"
@@ -880,6 +1067,7 @@ const EditOrderPage = () => {
                         {product.variants.map((variant) => (
                           <button
                             key={variant.id}
+                            type="button"
                             className="btn btn-xs btn-outline text-[#222222] border-[#bdbdbd] bg-white rounded-none"
                             onClick={() => handleAddVariant(variant)}
                             disabled={
@@ -927,22 +1115,36 @@ const EditOrderPage = () => {
                         className="text-[#222222]"
                       >
                         <td>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-[#222222]">
-                              {item.productVariant.product.productModel}{" "}
-                              {item.productVariant.product.sku}
-                            </span>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-sm text-gray-500">
-                                Color: {item.productVariant.color.name}
+                          <div className="flex items-start gap-3">
+                            {/* Imagen del producto */}
+                            <div className="flex-shrink-0">
+                              <Image
+                                src={process.env.NEXT_PUBLIC_API_URL + item.productVariant.images[0] || "/placeholder-image.jpg"}
+                                alt={`${item.productVariant.product.productModel} - ${item.productVariant.color.name}`}
+                                width={60}
+                                height={60}
+                                className="rounded-md object-cover border border-gray-200"
+                              />
+                            </div>
+                            
+                            {/* Información del producto */}
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="font-medium text-[#222222] break-words">
+                                {item.productVariant.product.productModel}{" "}
+                                {item.productVariant.product.sku}
                               </span>
-                              <span
-                                className="w-4 h-4 rounded-full border border-gray-300"
-                                style={{
-                                  backgroundColor:
-                                    item.productVariant.color.hex,
-                                }}
-                              ></span>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-sm text-gray-500">
+                                  Color: {item.productVariant.color.name}
+                                </span>
+                                <span
+                                  className="w-4 h-4 rounded-full border border-gray-300"
+                                  style={{
+                                    backgroundColor:
+                                      item.productVariant.color.hex,
+                                  }}
+                                ></span>
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -972,21 +1174,34 @@ const EditOrderPage = () => {
                         </td>
                         <td>{formatCurrency(item.subTotal, "en-US", "USD")}</td>
                         <td>
-                          <button
-                            className="btn btn-xs text-white bg-[#d32f2f] border-[#d32f2f] rounded-md shadow-md hover:bg-[#b71c1c] hover:border-[#b71c1c] transition-colors duration-200 ease-in-out"
-                            onClick={() =>
-                              handleRemoveVariant(item.productVariant.id)
-                            }
-                            disabled={
-                              itemOperationLoading === item.productVariant.id
-                            }
-                          >
-                            {itemOperationLoading === item.productVariant.id ? (
-                              <span className="loading loading-spinner loading-xs"></span>
-                            ) : (
-                              <Trash size={16} />
-                            )}
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-xs text-white bg-[#2196f3] border-[#2196f3] rounded-md shadow-md hover:bg-[#1976d2] hover:border-[#1976d2] transition-colors duration-200 ease-in-out"
+                              onClick={() => handleEditPrices(item)}
+                              disabled={itemOperationLoading === item.productVariant.id}
+                              title="Editar precios"
+                            >
+                              <Edit3 size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs text-white bg-[#d32f2f] border-[#d32f2f] rounded-md shadow-md hover:bg-[#b71c1c] hover:border-[#b71c1c] transition-colors duration-200 ease-in-out"
+                              onClick={() =>
+                                handleRemoveVariant(item.productVariant.id)
+                              }
+                              disabled={
+                                itemOperationLoading === item.productVariant.id
+                              }
+                              title="Eliminar producto"
+                            >
+                              {itemOperationLoading === item.productVariant.id ? (
+                                <span className="loading loading-spinner loading-xs"></span>
+                              ) : (
+                                <Trash size={16} />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -997,7 +1212,7 @@ const EditOrderPage = () => {
           )}
           {/* Subtotal y Total */}
           <div className="mt-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-ce<Image src={item.productVariant.images[0]} alt={item.productVariant.product.productModel} />nter">
               <span className="text-sm font-semibold text-[#222222]">
                 Subtotal:
               </span>
@@ -1005,7 +1220,7 @@ const EditOrderPage = () => {
                 {formatCurrency(form.subTotal, "en-US", "USD")}
               </span>
             </div>
-            {form.bankTransferExpense && (
+            {form.bankTransferExpense && form.paymentMethod === PaymentMethod.BankTransfer && (
               <div className="flex justify-between items-center mt-2">
                 <span className="text-sm font-semibold text-[#222222]">
                   Gasto por Transferencia bancaria:
@@ -1101,6 +1316,17 @@ const EditOrderPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal de edición de precios */}
+      {editPricesModal.item && (
+        <EditItemPricesModal
+          item={editPricesModal.item}
+          isOpen={editPricesModal.isOpen}
+          onClose={handleClosePricesModal}
+          onSave={handleSavePrices}
+          loading={editPricesModal.loading}
+        />
+      )}
     </div>
   );
 };

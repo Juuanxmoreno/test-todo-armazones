@@ -16,12 +16,24 @@ export const AnalyticsSchema = z
   .refine(
     (data) => {
       if (data.period === AnalyticsPeriod.Custom) {
-        return data.startDate && data.endDate;
+        if (!data.startDate || !data.endDate) {
+          return false;
+        }
+        // Validar que las fechas sean válidas
+        const startDate = new Date(data.startDate);
+        const endDate = new Date(data.endDate);
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return false;
+        }
+        // Validar que startDate sea anterior a endDate
+        if (startDate >= endDate) {
+          return false;
+        }
       }
       return true;
     },
     {
-      message: 'startDate y endDate son requeridos para período custom',
+      message: 'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
     },
   )
   .transform((data) => ({
@@ -54,12 +66,24 @@ export const AnalyticsSchemaOptionalPeriod = z
   .refine(
     (data) => {
       if (data.period === AnalyticsPeriod.Custom) {
-        return data.startDate && data.endDate;
+        if (!data.startDate || !data.endDate) {
+          return false;
+        }
+        // Validar que las fechas sean válidas
+        const startDate = new Date(data.startDate);
+        const endDate = new Date(data.endDate);
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return false;
+        }
+        // Validar que startDate sea anterior a endDate
+        if (startDate >= endDate) {
+          return false;
+        }
       }
       return true;
     },
     {
-      message: 'startDate y endDate son requeridos para período custom',
+      message: 'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
     },
   )
   .transform((data) => ({

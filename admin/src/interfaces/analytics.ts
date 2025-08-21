@@ -248,6 +248,39 @@ export interface CategoryStockAnalyticsDto {
   variantCount: number;
 }
 
+// Interface para analytics por subcategoría
+export interface SubcategoryStockAnalyticsDto {
+  subcategoryId: string;
+  subcategoryName: string;
+  totalStock: number;
+  totalValuationAtCost: number;
+  totalValuationAtRetail: number;
+  productCount: number;
+  variantCount: number;
+}
+
+// Interface para analytics mixtas de categoría y subcategoría
+export interface CategorySubcategoryStockAnalyticsDto {
+  categoryId: string;
+  categoryName: string;
+  subcategories: Array<{
+    subcategoryId: string;
+    subcategoryName: string;
+    totalStock: number;
+    totalValuationAtCost: number;
+    totalValuationAtRetail: number;
+    productCount: number;
+    variantCount: number;
+  }>;
+  categoryTotals: {
+    totalStock: number;
+    totalValuationAtCost: number;
+    totalValuationAtRetail: number;
+    productCount: number;
+    variantCount: number;
+  };
+}
+
 // DTOs para respuestas de la API
 export interface StockValuationResponseDto {
   status: string;
@@ -272,6 +305,16 @@ export interface LowStockAlertsResponseDto {
 export interface CategoryStockAnalyticsResponseDto {
   status: string;
   data: CategoryStockAnalyticsDto[];
+}
+
+export interface SubcategoryStockAnalyticsResponseDto {
+  status: string;
+  data: SubcategoryStockAnalyticsDto[];
+}
+
+export interface CategorySubcategoryStockAnalyticsResponseDto {
+  status: string;
+  data: CategorySubcategoryStockAnalyticsDto[];
 }
 
 // ============================================================================
@@ -305,17 +348,23 @@ export interface AnalyticsState {
     productAnalytics: ProductStockAnalyticsDto[] | null;
     lowStockAlerts: LowStockAlertDto[] | null;
     categoryAnalytics: CategoryStockAnalyticsDto[] | null;
+    subcategoryAnalytics: SubcategoryStockAnalyticsDto[] | null;
+    categorySubcategoryAnalytics: CategorySubcategoryStockAnalyticsDto[] | null;
     loading: {
       valuation: boolean;
       productAnalytics: boolean;
       lowStockAlerts: boolean;
       categoryAnalytics: boolean;
+      subcategoryAnalytics: boolean;
+      categorySubcategoryAnalytics: boolean;
     };
     error: {
       valuation: string | null;
       productAnalytics: string | null;
       lowStockAlerts: string | null;
       categoryAnalytics: string | null;
+      subcategoryAnalytics: string | null;
+      categorySubcategoryAnalytics: string | null;
     };
   };
 }

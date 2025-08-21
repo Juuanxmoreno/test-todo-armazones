@@ -5,10 +5,14 @@ import {
   fetchProductStockAnalytics,
   fetchLowStockAlerts,
   fetchCategoryStockAnalytics,
+  fetchSubcategoryStockAnalytics,
+  fetchCategorySubcategoryStockAnalytics,
   clearStockValuation,
   clearProductStockAnalytics,
   clearLowStockAlerts,
   clearCategoryStockAnalytics,
+  clearSubcategoryStockAnalytics,
+  clearCategorySubcategoryStockAnalytics,
   clearAllStockAnalytics,
 } from '@/redux/slices/analyticsSlice';
 
@@ -102,6 +106,44 @@ export const useStockAnalytics = () => {
   }, [dispatch]);
 
   // ============================================================================
+  // SUBCATEGORY ANALYTICS FUNCTIONS
+  // ============================================================================
+
+  // Función para cargar analytics por subcategoría
+  const loadSubcategoryAnalytics = useCallback(async () => {
+    await dispatch(fetchSubcategoryStockAnalytics());
+  }, [dispatch]);
+
+  // Función para refrescar analytics de subcategorías
+  const refreshSubcategoryAnalytics = useCallback(async () => {
+    await dispatch(fetchSubcategoryStockAnalytics());
+  }, [dispatch]);
+
+  // Función para limpiar datos de subcategorías
+  const clearSubcategoryData = useCallback(() => {
+    dispatch(clearSubcategoryStockAnalytics());
+  }, [dispatch]);
+
+  // ============================================================================
+  // CATEGORY-SUBCATEGORY ANALYTICS FUNCTIONS
+  // ============================================================================
+
+  // Función para cargar analytics jerárquicas (categorías con subcategorías)
+  const loadCategorySubcategoryAnalytics = useCallback(async () => {
+    await dispatch(fetchCategorySubcategoryStockAnalytics());
+  }, [dispatch]);
+
+  // Función para refrescar analytics jerárquicas
+  const refreshCategorySubcategoryAnalytics = useCallback(async () => {
+    await dispatch(fetchCategorySubcategoryStockAnalytics());
+  }, [dispatch]);
+
+  // Función para limpiar datos jerárquicos
+  const clearCategorySubcategoryData = useCallback(() => {
+    dispatch(clearCategorySubcategoryStockAnalytics());
+  }, [dispatch]);
+
+  // ============================================================================
   // BULK OPERATIONS
   // ============================================================================
 
@@ -125,6 +167,8 @@ export const useStockAnalytics = () => {
         dispatch(fetchProductStockAnalytics({ limit: productLimit, offset: productOffset })),
         dispatch(fetchLowStockAlerts({ threshold: alertThreshold, limit: alertLimit })),
         dispatch(fetchCategoryStockAnalytics()),
+        dispatch(fetchSubcategoryStockAnalytics()),
+        dispatch(fetchCategorySubcategoryStockAnalytics()),
       ]);
     },
     [dispatch]
@@ -148,6 +192,8 @@ export const useStockAnalytics = () => {
         dispatch(fetchProductStockAnalytics({ limit: productLimit, offset: 0 })),
         dispatch(fetchLowStockAlerts({ threshold: alertThreshold, limit: alertLimit })),
         dispatch(fetchCategoryStockAnalytics()),
+        dispatch(fetchSubcategoryStockAnalytics()),
+        dispatch(fetchCategorySubcategoryStockAnalytics()),
       ]);
     },
     [dispatch]
@@ -167,24 +213,30 @@ export const useStockAnalytics = () => {
   const productAnalytics = useMemo(() => stockAnalytics.productAnalytics || [], [stockAnalytics.productAnalytics]);
   const lowStockAlerts = stockAnalytics.lowStockAlerts || [];
   const categoryAnalytics = stockAnalytics.categoryAnalytics || [];
+  const subcategoryAnalytics = stockAnalytics.subcategoryAnalytics || [];
+  const categorySubcategoryAnalytics = stockAnalytics.categorySubcategoryAnalytics || [];
 
   // Estados de carga
   const isLoadingValuation = stockAnalytics.loading.valuation;
   const isLoadingProductAnalytics = stockAnalytics.loading.productAnalytics;
   const isLoadingLowStockAlerts = stockAnalytics.loading.lowStockAlerts;
   const isLoadingCategoryAnalytics = stockAnalytics.loading.categoryAnalytics;
+  const isLoadingSubcategoryAnalytics = stockAnalytics.loading.subcategoryAnalytics;
+  const isLoadingCategorySubcategoryAnalytics = stockAnalytics.loading.categorySubcategoryAnalytics;
 
   // Estados de error
   const valuationError = stockAnalytics.error.valuation;
   const productAnalyticsError = stockAnalytics.error.productAnalytics;
   const lowStockAlertsError = stockAnalytics.error.lowStockAlerts;
   const categoryAnalyticsError = stockAnalytics.error.categoryAnalytics;
+  const subcategoryAnalyticsError = stockAnalytics.error.subcategoryAnalytics;
+  const categorySubcategoryAnalyticsError = stockAnalytics.error.categorySubcategoryAnalytics;
 
   // Estado general de carga
-  const isLoadingAny = isLoadingValuation || isLoadingProductAnalytics || isLoadingLowStockAlerts || isLoadingCategoryAnalytics;
+  const isLoadingAny = isLoadingValuation || isLoadingProductAnalytics || isLoadingLowStockAlerts || isLoadingCategoryAnalytics || isLoadingSubcategoryAnalytics || isLoadingCategorySubcategoryAnalytics;
 
   // Verificar si hay algún error
-  const hasAnyError = Boolean(valuationError || productAnalyticsError || lowStockAlertsError || categoryAnalyticsError);
+  const hasAnyError = Boolean(valuationError || productAnalyticsError || lowStockAlertsError || categoryAnalyticsError || subcategoryAnalyticsError || categorySubcategoryAnalyticsError);
 
   // ============================================================================
   // HELPER FUNCTIONS
@@ -286,12 +338,16 @@ export const useStockAnalytics = () => {
     productAnalytics,
     lowStockAlerts,
     categoryAnalytics,
+    subcategoryAnalytics,
+    categorySubcategoryAnalytics,
 
     // Estados de carga
     isLoadingValuation,
     isLoadingProductAnalytics,
     isLoadingLowStockAlerts,
     isLoadingCategoryAnalytics,
+    isLoadingSubcategoryAnalytics,
+    isLoadingCategorySubcategoryAnalytics,
     isLoadingAny,
 
     // Estados de error
@@ -299,6 +355,8 @@ export const useStockAnalytics = () => {
     productAnalyticsError,
     lowStockAlertsError,
     categoryAnalyticsError,
+    subcategoryAnalyticsError,
+    categorySubcategoryAnalyticsError,
     hasAnyError,
 
     // Funciones individuales
@@ -306,17 +364,23 @@ export const useStockAnalytics = () => {
     loadProductAnalytics,
     loadLowStockAlerts,
     loadCategoryAnalytics,
+    loadSubcategoryAnalytics,
+    loadCategorySubcategoryAnalytics,
 
     // Funciones de refresh
     refreshProductAnalytics,
     refreshLowStockAlerts,
     refreshCategoryAnalytics,
+    refreshSubcategoryAnalytics,
+    refreshCategorySubcategoryAnalytics,
 
     // Funciones de limpieza
     clearValuationData,
     clearProductData,
     clearAlertsData,
     clearCategoryData,
+    clearSubcategoryData,
+    clearCategorySubcategoryData,
 
     // Funciones bulk
     loadAllStockData,

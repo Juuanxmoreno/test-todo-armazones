@@ -79,24 +79,24 @@ const OrdersAnalyticsPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center">
+            <AlertCircle className="h-10 w-10 sm:h-12 sm:w-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-red-800 mb-2">
               Error al cargar analytics
             </h3>
-            <p className="text-red-600 mb-4">{error}</p>
-            <div className="space-x-3">
+            <p className="text-red-600 mb-4 text-sm sm:text-base">{error}</p>
+            <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={clearAnalyticsError}
-                className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-md hover:bg-red-50"
+                className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50 transition-colors"
               >
                 Cerrar
               </button>
               <button
                 onClick={handleRefresh}
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
               >
                 Reintentar
               </button>
@@ -108,17 +108,17 @@ const OrdersAnalyticsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-                <ShoppingCart className="h-8 w-8 text-blue-600" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center space-x-2">
+                <ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
                 <span>Analytics de Órdenes</span>
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 mt-1 sm:mt-2">
                 Analiza el performance de ventas y órdenes en tiempo real
               </p>
             </div>
@@ -128,7 +128,7 @@ const OrdersAnalyticsPage = () => {
               onClick={handleRefresh}
               disabled={loading.isLoading}
               className={`
-                flex items-center space-x-2 px-4 py-2 rounded-lg border
+                flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors
                 ${
                   loading.isLoading
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -145,7 +145,7 @@ const OrdersAnalyticsPage = () => {
         </div>
 
         {/* Tabs Navigation */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <AnalyticsTabNavigation tabs={tabs} />
         </div>
 
@@ -238,7 +238,7 @@ const OrdersAnalyticsPage = () => {
           </div>
 
           {/* Selector de métrica para gráfico */}
-          {hasBreakdown && (
+          {hasBreakdown && breakdown && Array.isArray(breakdown) && breakdown.length > 0 && (
             <MetricSelector
               selectedMetric={selectedMetric}
               onMetricChange={changeSelectedMetric}
@@ -247,7 +247,7 @@ const OrdersAnalyticsPage = () => {
           )}
 
           {/* Gráfico */}
-          {hasBreakdown && breakdown && (
+          {hasBreakdown && breakdown && Array.isArray(breakdown) && breakdown.length > 0 && (
             <AnalyticsLineChart
               data={breakdown}
               selectedMetric={selectedMetric}

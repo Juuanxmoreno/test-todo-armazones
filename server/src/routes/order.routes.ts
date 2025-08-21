@@ -12,6 +12,7 @@ import {
   checkStockAvailabilityParamsSchema,
   updateOrderStatusWithConflictsBodySchema,
 } from 'schemas/order.schema';
+import { updateItemPricesBodySchema } from 'schemas/updateItemPrices.schema';
 
 const router: Router = Router();
 
@@ -49,6 +50,16 @@ router.patch(
     body: updateOrderBodySchema,
   }),
   orderController.updateOrder,
+);
+
+// Ruta de conveniencia para actualizar solo precios
+router.patch(
+  '/:orderId/update-prices',
+  validateRequest({
+    params: updateOrderParamsSchema,
+    body: updateItemPricesBodySchema,
+  }),
+  orderController.updateItemPrices,
 );
 
 router.get('/:orderId/pdf', orderController.getOrderPDF);

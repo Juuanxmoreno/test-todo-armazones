@@ -63,6 +63,7 @@ import {
   OrdersResponse, 
   Order, 
   UpdateOrderPayload,
+  UpdateItemPricesPayload,
   BulkUpdateOrderStatusPayload,
   BulkUpdateOrderStatusResponse,
   StockAvailabilityResponse,
@@ -140,6 +141,31 @@ export const updateOrder = createAsyncThunk<
       if (response.data.status !== "success" || !response.data.data) {
         return rejectWithValue(
           response.data.message || "Error al actualizar la orden"
+        );
+      }
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
+// Thunk para actualización rápida de precios de items
+export const updateItemPrices = createAsyncThunk<
+  Order,
+  UpdateItemPricesPayload,
+  { rejectValue: string }
+>(
+  "orders/updateItemPrices",
+  async ({ orderId, items }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.patch<ApiResponse<Order>>(
+        `/orders/${orderId}/update-prices`,
+        { items }
+      );
+      if (response.data.status !== "success" || !response.data.data) {
+        return rejectWithValue(
+          response.data.message || "Error al actualizar precios"
         );
       }
       return response.data.data;
@@ -245,6 +271,10 @@ const orderSlice = createSlice({
       state.stockAvailability = null;
       state.stockCheckError = null;
     },
+    // Limpiar orderById guardada en el store
+    clearOrderById(state) {
+      state.orderById = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -287,6 +317,27 @@ const orderSlice = createSlice({
       .addCase(updateOrder.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || "Error al actualizar la orden";
+      })
+      // updateItemPrices cases
+      .addCase(updateItemPrices.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(updateItemPrices.fulfilled, (state, action) => {
+        state.loading = false;
+        state.error = null;
+        // Actualiza la orden en el array si existe
+        const idx = state.orders.findIndex((o) => o.id === action.payload.id);
+        if (idx !== -1) {
+          state.orders[idx] = action.payload;
+        }
+        // También actualizar orderById si es la misma orden
+        if (state.orderById && state.orderById.id === action.payload.id) {
+          state.orderById = action.payload;
+        }
+      })
+      .addCase(updateItemPrices.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "Error al actualizar precios";
       })
       .addCase(createOrderAsAdmin.fulfilled, (state, action) => {
         // Agrega la orden creada al principio
@@ -390,5 +441,5 @@ const orderSlice = createSlice({
   },
 });
 
-export const { setStatusFilter, resetOrders, addOrder, clearStockAvailability } = orderSlice.actions;
+export const { setStatusFilter, resetOrders, addOrder, clearStockAvailability, clearOrderById } = orderSlice.actions;
 export default orderSlice.reducer;

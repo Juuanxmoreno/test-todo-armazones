@@ -31,8 +31,13 @@ export interface CreateOrderAdminDto {
 // DTOs para actualización completa de órdenes
 export interface UpdateOrderItemDto {
   productVariantId: Types.ObjectId;
-  action: 'increase' | 'decrease' | 'remove' | 'add' | 'set';
+  action: 'increase' | 'decrease' | 'remove' | 'add' | 'set' | 'update_prices' | 'update_all';
   quantity?: number; // Para 'add', 'increase', 'decrease', 'set'
+  // Nuevos campos para actualización de precios y valores financieros
+  costUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
+  priceUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
+  subTotal?: number; // Para 'update_all' (override manual del subtotal)
+  gainUSD?: number; // Para 'update_all' (override manual de la ganancia)
 }
 
 export interface UpdateOrderDto {

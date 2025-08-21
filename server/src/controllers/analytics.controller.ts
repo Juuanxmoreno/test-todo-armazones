@@ -234,4 +234,50 @@ export class AnalyticsController {
       throw error;
     }
   }
+
+  /**
+   * Obtiene analytics de stock agrupado por subcategoría
+   */
+  public async getStockAnalyticsBySubcategory(_req: Request, res: Response): Promise<void> {
+    try {
+      const stockAnalyticsService = new StockAnalyticsService();
+      const result = await stockAnalyticsService.getStockAnalyticsBySubcategory();
+
+      const response: ApiResponse<typeof result> = {
+        status: 'success',
+        data: result,
+      };
+
+      res.json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('inválido')) {
+        throw new AppError(error.message, 400, 'fail');
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene analytics de stock con vista jerárquica: categorías con sus subcategorías
+   */
+  public async getStockAnalyticsByCategoryWithSubcategories(_req: Request, res: Response): Promise<void> {
+    try {
+      const stockAnalyticsService = new StockAnalyticsService();
+      const result = await stockAnalyticsService.getStockAnalyticsByCategoryWithSubcategories();
+
+      const response: ApiResponse<typeof result> = {
+        status: 'success',
+        data: result,
+      };
+
+      res.json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('inválido')) {
+        throw new AppError(error.message, 400, 'fail');
+      }
+
+      throw error;
+    }
+  }
 }

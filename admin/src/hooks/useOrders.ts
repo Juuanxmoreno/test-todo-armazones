@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
   fetchOrders,
   updateOrder,
+  updateItemPrices,
   setStatusFilter,
   resetOrders,
   createOrderAsAdmin,
@@ -11,11 +12,13 @@ import {
   checkOrderStockAvailability,
   updateOrderStatusWithConflictHandling,
   clearStockAvailability,
+  clearOrderById as clearOrderByIdAction,
   CreateOrderAdminPayload,
 } from "@/redux/slices/orderSlice";
 import type { 
   Order, 
-  UpdateOrderPayload, 
+  UpdateOrderPayload,
+  UpdateItemPricesPayload,
   BulkUpdateOrderStatusPayload, 
   BulkUpdateOrderStatusResponse,
   StockAvailabilityResponse,
@@ -55,6 +58,13 @@ const useOrders = () => {
   const updateOrderData = useCallback(
     (payload: UpdateOrderPayload) => {
       return dispatch(updateOrder(payload));
+    },
+    [dispatch]
+  );
+
+  const updateItemPricesData = useCallback(
+    (payload: UpdateItemPricesPayload) => {
+      return dispatch(updateItemPrices(payload));
     },
     [dispatch]
   );
@@ -129,6 +139,10 @@ const useOrders = () => {
     dispatch(clearStockAvailability());
   }, [dispatch]);
 
+  const clearOrderById = useCallback(() => {
+  dispatch(clearOrderByIdAction());
+  }, [dispatch]);
+
   return {
     orders,
     orderById,
@@ -143,10 +157,12 @@ const useOrders = () => {
     getOrders,
     getOrderById,
     updateOrderData,
+    updateItemPricesData,
     bulkUpdateOrderStatusData,
     checkStockAvailability,
     updateOrderStatusWithConflicts,
-    clearStockInfo,
+  clearStockInfo,
+  clearOrderById,
     setFilter,
     clearOrders,
     createOrderAsAdmin: useCallback(

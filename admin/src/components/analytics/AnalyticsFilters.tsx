@@ -20,12 +20,39 @@ const AnalyticsFiltersComponent: React.FC<AnalyticsFiltersProps> = ({
   onComparisonToggle,
   isLoading = false,
 }) => {
+  // Función para obtener fechas por defecto para período custom (últimos 30 días)
+  const getDefaultCustomDates = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30); // 30 días atrás
+    
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    };
+  };
+
+  const defaultDates = getDefaultCustomDates();
+  
   const [customStartDate, setCustomStartDate] = useState(
-    filters.customRange?.startDate || ''
+    filters.customRange?.startDate || defaultDates.startDate
   );
   const [customEndDate, setCustomEndDate] = useState(
-    filters.customRange?.endDate || ''
+    filters.customRange?.endDate || defaultDates.endDate
   );
+
+  const handlePeriodChange = (period: AnalyticsPeriod) => {
+    onPeriodChange(period);
+    
+    // Si se selecciona Custom y no hay fechas en los filtros, aplicar fechas por defecto
+    if (period === AnalyticsPeriod.Custom && !filters.customRange) {
+      const defaultDates = getDefaultCustomDates();
+      setCustomStartDate(defaultDates.startDate);
+      setCustomEndDate(defaultDates.endDate);
+      // Auto-aplicar las fechas por defecto
+      onDateRangeChange(defaultDates.startDate, defaultDates.endDate);
+    }
+  };
 
   const periodOptions = [
     { value: AnalyticsPeriod.Today, label: 'Hoy' },
@@ -61,7 +88,7 @@ const AnalyticsFiltersComponent: React.FC<AnalyticsFiltersProps> = ({
           {periodOptions.map((option) => (
             <button
               key={option.value}
-              onClick={() => onPeriodChange(option.value)}
+              onClick={() => handlePeriodChange(option.value)}
               disabled={isLoading}
               className={`
                 px-3 py-2 text-sm font-medium rounded-md transition-colors
@@ -95,7 +122,7 @@ const AnalyticsFiltersComponent: React.FC<AnalyticsFiltersProps> = ({
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -107,7 +134,7 @@ const AnalyticsFiltersComponent: React.FC<AnalyticsFiltersProps> = ({
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                className="w-full px-3 py-2 text-gray-700 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:text-gray-500"
               />
             </div>
             <div className="flex items-end">

@@ -44,6 +44,14 @@ const PendingPaymentInfo: React.FC<PendingPaymentInfoProps> = ({
               <Clock className="h-4 w-4" />
               <span>Una vez pagado, se puede cambiar a <strong>ON_HOLD</strong> (si hay stock) o <strong>COMPLETED</strong></span>
             </div>
+
+            <div className="flex items-start gap-2 text-sm text-blue-700 bg-blue-100 p-2 rounded">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong>Ediciones de productos:</strong> Los cambios en cantidades, eliminación o adición de productos 
+                <strong> NO afectarán el inventario</strong> hasta que se reactive la orden cambiando el estado.
+              </div>
+            </div>
           </div>
           
           <div className="text-sm text-blue-700">

@@ -90,8 +90,26 @@ export class AnalyticsDateHelper {
         if (!customRange) {
           throw new Error('Custom range is required for Custom period');
         }
-        const startZoned = startOfDay(toZonedTime(new Date(customRange.startDate), timezone));
-        const endZoned = endOfDay(toZonedTime(new Date(customRange.endDate), timezone));
+        if (!customRange.startDate || !customRange.endDate) {
+          throw new Error('startDate and endDate are required for Custom period');
+        }
+        
+        // Validar que las fechas sean válidas
+        const startDate = new Date(customRange.startDate);
+        const endDate = new Date(customRange.endDate);
+        
+        if (isNaN(startDate.getTime())) {
+          throw new Error(`Invalid startDate: ${customRange.startDate}`);
+        }
+        if (isNaN(endDate.getTime())) {
+          throw new Error(`Invalid endDate: ${customRange.endDate}`);
+        }
+        if (startDate >= endDate) {
+          throw new Error('startDate must be before endDate');
+        }
+        
+        const startZoned = startOfDay(toZonedTime(startDate, timezone));
+        const endZoned = endOfDay(toZonedTime(endDate, timezone));
         return {
           startDate: fromZonedTime(startZoned, timezone),
           endDate: fromZonedTime(endZoned, timezone),

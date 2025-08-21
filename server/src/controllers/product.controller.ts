@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ProductService } from '@services/product.service';
 import { CreateProductRequestDto, UpdateProductRequestDto } from '@dto/product.dto';
 import { CreateProductVariantRequestDto, UpdateProductVariantRequestDto } from '@dto/product-variant.dto';
+import { BulkPriceUpdateRequestDto } from '@dto/bulk-price-update.dto';
 import logger from '@config/logger';
 import { AppError } from '@utils/AppError';
 import path from 'path';
@@ -10,6 +11,7 @@ import { normalizeColorName } from '@utils/normalizeColorName';
 import { getSessionUserId } from '@utils/sessionUtils';
 import { ApiResponse, ApiErrorResponse } from '../types/response';
 import fs from 'fs/promises';
+import { Types } from 'mongoose';
 
 export class ProductController {
   private productService: ProductService = new ProductService();
@@ -333,6 +335,46 @@ export class ProductController {
         res.status(500).json({
           status: 'error',
           message: 'Error searching products',
+        } as ApiErrorResponse);
+      }
+    }
+  };
+
+  public bulkUpdatePrices = async (req: Request, res: Response<ApiResponse | ApiErrorResponse>): Promise<void> => {
+    try {
+      // Convertir strings a ObjectId para categoryIds y subcategoryIds
+      const categoryIds = req.body.categoryIds?.map((id: string) => new Types.ObjectId(id)) || [];
+      const subcategoryIds = req.body.subcategoryIds?.map((id: string) => new Types.ObjectId(id)) || undefined;
+
+      const bulkUpdateDto: BulkPriceUpdateRequestDto = {
+        categoryIds,
+        subcategoryIds,
+        updateType: req.body.updateType,
+        value: req.body.value,
+        minPrice: req.body.minPrice,
+        maxPrice: req.body.maxPrice,
+      };
+
+      const result = await this.productService.bulkUpdatePrices(bulkUpdateDto);
+
+      res.status(200).json({
+        status: 'success',
+        message: `Actualización masiva completada. ${result.totalVariantsUpdated} variantes actualizadas de ${result.totalVariantsFound} encontradas.`,
+        data: result,
+      });
+    } catch (error: unknown) {
+      logger.error('Error in bulk price update:', { error, body: req.body });
+
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          status: error.status,
+          message: error.message,
+          details: error.details,
+        } as ApiErrorResponse);
+      } else {
+        res.status(500).json({
+          status: 'error',
+          message: 'Error en la actualización masiva de precios',
         } as ApiErrorResponse);
       }
     }

@@ -74,10 +74,10 @@ const UserDetailAnalyticsPage = () => {
       href: "/analytics/users",
     },
     {
-      id: "products",
-      label: "Productos",
+      id: "stock",
+      label: "Stock",
       icon: <Package className="h-4 w-4" />,
-      href: "/analytics/products",
+      href: "/analytics/stock",
     },
   ];
 

@@ -1254,6 +1254,20 @@ export class OrderService {
           await this.removeItemFromOrder(order, existingItemIndex, session, userId);
           break;
 
+        case 'update_prices':
+          if (existingItemIndex === -1) {
+            throw new AppError('El producto no existe en la orden', 400, 'fail');
+          }
+          await this.updateItemPrices(order, existingItemIndex, update, session, userId);
+          break;
+
+        case 'update_all':
+          if (existingItemIndex === -1) {
+            throw new AppError('El producto no existe en la orden', 400, 'fail');
+          }
+          await this.updateItemCompletely(order, existingItemIndex, update, session, userId);
+          break;
+
         default:
           throw new AppError(`Acción no válida: ${update.action}`, 400, 'fail');
       }
@@ -1281,25 +1295,47 @@ export class OrderService {
       throw new AppError('Variante de producto no encontrada', 404, 'fail');
     }
 
-    // Verificar stock disponible
-    if (productVariant.stock < update.quantity) {
-      throw new AppError(
-        `Stock insuficiente. Disponible: ${productVariant.stock}, solicitado: ${update.quantity}`,
-        400,
-        'fail',
-      );
-    }
+    // Verificar stock disponible y registrar salida solo si NO está en PENDING_PAYMENT
+    if (order.orderStatus !== OrderStatus.PendingPayment) {
+      // Verificar stock disponible
+      if (productVariant.stock < update.quantity) {
+        throw new AppError(
+          `Stock insuficiente. Disponible: ${productVariant.stock}, solicitado: ${update.quantity}`,
+          400,
+          'fail',
+        );
+      }
 
-    // Registrar salida de stock
-    await this.inventoryService.createStockExitWithSession(
-      update.productVariantId,
-      update.quantity,
-      session,
-      StockMovementReason.SALE,
-      `Orden-${order.orderNumber}`,
-      `Adición de item a orden ${order.orderNumber}`,
-      userId,
-    );
+      // Registrar salida de stock
+      await this.inventoryService.createStockExitWithSession(
+        update.productVariantId,
+        update.quantity,
+        session,
+        StockMovementReason.SALE,
+        `Orden-${order.orderNumber}`,
+        `Adición de item a orden ${order.orderNumber}`,
+        userId,
+      );
+
+      logger.info('Stock reservado por adición de item', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: update.productVariantId,
+        quantity: update.quantity,
+        userId: userId?.toString(),
+      });
+    } else {
+      logger.info('Item agregado sin reserva de stock (orden en PENDING_PAYMENT)', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: update.productVariantId,
+        quantity: update.quantity,
+        userId: userId?.toString(),
+        reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+      });
+    }
 
     // Obtener precios actuales del ProductVariant
     const priceUSDAtPurchase = productVariant.priceUSD;
@@ -1335,30 +1371,52 @@ export class OrderService {
 
     const item = order.items[itemIndex];
 
-    // Verificar stock disponible
-    const productVariant = await ProductVariant.findById(item.productVariant).session(session);
-    if (!productVariant) {
-      throw new AppError('Variante de producto no encontrada', 404, 'fail');
-    }
+    // Verificar stock disponible y registrar salida solo si NO está en PENDING_PAYMENT
+    if (order.orderStatus !== OrderStatus.PendingPayment) {
+      // Verificar stock disponible
+      const productVariant = await ProductVariant.findById(item.productVariant).session(session);
+      if (!productVariant) {
+        throw new AppError('Variante de producto no encontrada', 404, 'fail');
+      }
 
-    if (productVariant.stock < update.quantity) {
-      throw new AppError(
-        `Stock insuficiente. Disponible: ${productVariant.stock}, solicitado: ${update.quantity}`,
-        400,
-        'fail',
+      if (productVariant.stock < update.quantity) {
+        throw new AppError(
+          `Stock insuficiente. Disponible: ${productVariant.stock}, solicitado: ${update.quantity}`,
+          400,
+          'fail',
+        );
+      }
+
+      // Registrar salida de stock
+      await this.inventoryService.createStockExitWithSession(
+        item.productVariant,
+        update.quantity,
+        session,
+        StockMovementReason.SALE,
+        `Orden-${order.orderNumber}`,
+        `Aumento de cantidad en orden ${order.orderNumber}`,
+        userId,
       );
-    }
 
-    // Registrar salida de stock
-    await this.inventoryService.createStockExitWithSession(
-      item.productVariant,
-      update.quantity,
-      session,
-      StockMovementReason.SALE,
-      `Orden-${order.orderNumber}`,
-      `Aumento de cantidad en orden ${order.orderNumber}`,
-      userId,
-    );
+      logger.info('Stock reservado por aumento de cantidad', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: item.productVariant,
+        quantityAdded: update.quantity,
+        userId: userId?.toString(),
+      });
+    } else {
+      logger.info('Cantidad aumentada sin reserva de stock (orden en PENDING_PAYMENT)', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: item.productVariant,
+        quantityAdded: update.quantity,
+        userId: userId?.toString(),
+        reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+      });
+    }
 
     // Actualizar item
     item.quantity += update.quantity;
@@ -1391,17 +1449,40 @@ export class OrderService {
       );
     }
 
-    // Registrar entrada de stock (devolución)
-    await this.inventoryService.createStockEntryWithSession(
-      item.productVariant,
-      update.quantity,
-      session,
-      item.costUSDAtPurchase,
-      StockMovementReason.RETURN,
-      `Orden-${order.orderNumber}`,
-      `Disminución de cantidad en orden ${order.orderNumber}`,
-      userId,
-    );
+    // Solo devolver stock si la orden NO está en PENDING_PAYMENT
+    // Si está en PENDING_PAYMENT, el stock ya fue liberado automáticamente al cambiar el estado
+    if (order.orderStatus !== OrderStatus.PendingPayment) {
+      // Registrar entrada de stock (devolución)
+      await this.inventoryService.createStockEntryWithSession(
+        item.productVariant,
+        update.quantity,
+        session,
+        item.costUSDAtPurchase,
+        StockMovementReason.RETURN,
+        `Orden-${order.orderNumber}`,
+        `Disminución de cantidad en orden ${order.orderNumber}`,
+        userId,
+      );
+
+      logger.info('Stock devuelto por disminución de cantidad', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: item.productVariant,
+        quantityReturned: update.quantity,
+        userId: userId?.toString(),
+      });
+    } else {
+      logger.info('Cantidad disminuida sin devolución de stock (orden en PENDING_PAYMENT)', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: item.productVariant,
+        quantityReduced: update.quantity,
+        userId: userId?.toString(),
+        reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+      });
+    }
 
     // Actualizar item
     item.quantity -= update.quantity;
@@ -1433,45 +1514,87 @@ export class OrderService {
     }
 
     if (difference > 0) {
-      // Aumentar cantidad
-      const productVariant = await ProductVariant.findById(item.productVariant).session(session);
-      if (!productVariant) {
-        throw new AppError('Variante de producto no encontrada', 404, 'fail');
-      }
+      // Aumentar cantidad - verificar stock disponible si NO está en PENDING_PAYMENT
+      if (order.orderStatus !== OrderStatus.PendingPayment) {
+        const productVariant = await ProductVariant.findById(item.productVariant).session(session);
+        if (!productVariant) {
+          throw new AppError('Variante de producto no encontrada', 404, 'fail');
+        }
 
-      if (productVariant.stock < difference) {
-        throw new AppError(
-          `Stock insuficiente. Disponible: ${productVariant.stock}, necesario: ${difference}`,
-          400,
-          'fail',
+        if (productVariant.stock < difference) {
+          throw new AppError(
+            `Stock insuficiente. Disponible: ${productVariant.stock}, necesario: ${difference}`,
+            400,
+            'fail',
+          );
+        }
+
+        // Registrar salida de stock
+        await this.inventoryService.createStockExitWithSession(
+          item.productVariant,
+          difference,
+          session,
+          StockMovementReason.SALE,
+          `Orden-${order.orderNumber}`,
+          `Ajuste de cantidad en orden ${order.orderNumber}`,
+          userId,
         );
-      }
 
-      // Registrar salida de stock
-      await this.inventoryService.createStockExitWithSession(
-        item.productVariant,
-        difference,
-        session,
-        StockMovementReason.SALE,
-        `Orden-${order.orderNumber}`,
-        `Ajuste de cantidad en orden ${order.orderNumber}`,
-        userId,
-      );
+        logger.info('Stock reservado por aumento de cantidad', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          productVariantId: item.productVariant,
+          quantityAdded: difference,
+          userId: userId?.toString(),
+        });
+      } else {
+        logger.info('Cantidad aumentada sin reserva de stock (orden en PENDING_PAYMENT)', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          productVariantId: item.productVariant,
+          quantityAdded: difference,
+          userId: userId?.toString(),
+          reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+        });
+      }
     } else {
-      // Disminuir cantidad
+      // Disminuir cantidad - solo devolver stock si NO está en PENDING_PAYMENT
       const quantityToReturn = Math.abs(difference);
 
-      // Registrar entrada de stock (devolución)
-      await this.inventoryService.createStockEntryWithSession(
-        item.productVariant,
-        quantityToReturn,
-        session,
-        item.costUSDAtPurchase,
-        StockMovementReason.RETURN,
-        `Orden-${order.orderNumber}`,
-        `Ajuste de cantidad en orden ${order.orderNumber}`,
-        userId,
-      );
+      if (order.orderStatus !== OrderStatus.PendingPayment) {
+        // Registrar entrada de stock (devolución)
+        await this.inventoryService.createStockEntryWithSession(
+          item.productVariant,
+          quantityToReturn,
+          session,
+          item.costUSDAtPurchase,
+          StockMovementReason.RETURN,
+          `Orden-${order.orderNumber}`,
+          `Ajuste de cantidad en orden ${order.orderNumber}`,
+          userId,
+        );
+
+        logger.info('Stock devuelto por disminución de cantidad', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          productVariantId: item.productVariant,
+          quantityReturned: quantityToReturn,
+          userId: userId?.toString(),
+        });
+      } else {
+        logger.info('Cantidad disminuida sin devolución de stock (orden en PENDING_PAYMENT)', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          productVariantId: item.productVariant,
+          quantityReduced: quantityToReturn,
+          userId: userId?.toString(),
+          reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+        });
+      }
     }
 
     // Actualizar item
@@ -1482,7 +1605,8 @@ export class OrderService {
 
   /**
    * Elimina completamente un item de la orden
-   * Devuelve todo el stock al inventario
+   * Devuelve todo el stock al inventario solo si la orden no está en PENDING_PAYMENT
+   * (si está en PENDING_PAYMENT, el stock ya fue liberado automáticamente)
    */
   private async removeItemFromOrder(
     order: IOrderDocument,
@@ -1492,20 +1616,235 @@ export class OrderService {
   ): Promise<void> {
     const item = order.items[itemIndex];
 
-    // Registrar entrada de stock (devolución completa)
-    await this.inventoryService.createStockEntryWithSession(
-      item.productVariant,
-      item.quantity,
-      session,
-      item.costUSDAtPurchase,
-      StockMovementReason.RETURN,
-      `Orden-${order.orderNumber}`,
-      `Eliminación de item de orden ${order.orderNumber}`,
-      userId,
-    );
+    // Solo devolver stock si la orden NO está en PENDING_PAYMENT
+    // Si está en PENDING_PAYMENT, el stock ya fue liberado automáticamente al cambiar el estado
+    if (order.orderStatus !== OrderStatus.PendingPayment) {
+      // Registrar entrada de stock (devolución completa)
+      await this.inventoryService.createStockEntryWithSession(
+        item.productVariant,
+        item.quantity,
+        session,
+        item.costUSDAtPurchase,
+        StockMovementReason.RETURN,
+        `Orden-${order.orderNumber}`,
+        `Eliminación de item de orden ${order.orderNumber}`,
+        userId,
+      );
+
+      logger.info('Stock devuelto por eliminación de item', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: item.productVariant,
+        quantity: item.quantity,
+        userId: userId?.toString(),
+      });
+    } else {
+      logger.info('Item eliminado sin devolución de stock (orden en PENDING_PAYMENT)', {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        productVariantId: item.productVariant,
+        quantity: item.quantity,
+        userId: userId?.toString(),
+        reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+      });
+    }
 
     // Eliminar el item del array
     order.items.splice(itemIndex, 1);
+  }
+
+  /**
+   * Actualiza únicamente los precios de un item existente
+   * Recalcula automáticamente subTotal y gainUSD basándose en la cantidad actual
+   */
+  private async updateItemPrices(
+    order: IOrderDocument,
+    itemIndex: number,
+    update: UpdateOrderItemDto,
+    session: mongoose.ClientSession, // Mantenido para consistencia de firma, aunque no se usa directamente
+    userId?: Types.ObjectId,
+  ): Promise<void> {
+    const item = order.items[itemIndex];
+    let hasChanges = false;
+
+    // Actualizar costUSDAtPurchase si se proporciona
+    if (update.costUSDAtPurchase !== undefined) {
+      item.costUSDAtPurchase = update.costUSDAtPurchase;
+      hasChanges = true;
+    }
+
+    // Actualizar priceUSDAtPurchase si se proporciona
+    if (update.priceUSDAtPurchase !== undefined) {
+      item.priceUSDAtPurchase = update.priceUSDAtPurchase;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      // Recalcular automáticamente subTotal y gainUSD basándose en la cantidad actual
+      item.subTotal = item.priceUSDAtPurchase * item.quantity;
+      item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+
+      logger.info('Precios de item actualizados', {
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        productVariantId: item.productVariant.toString(),
+        oldCost: item.costUSDAtPurchase,
+        newCost: update.costUSDAtPurchase,
+        oldPrice: item.priceUSDAtPurchase,
+        newPrice: update.priceUSDAtPurchase,
+        newSubTotal: item.subTotal,
+        newGainUSD: item.gainUSD,
+        userId: userId?.toString(),
+      });
+    }
+
+    // Nota: session se mantiene en la firma para consistencia con otros métodos
+    // aunque no se requiere para operaciones de actualización de precios en memoria
+    void session; // Evita warning de parámetro no usado
+  }
+
+  /**
+   * Actualiza completamente un item existente
+   * Permite override manual de todos los campos financieros
+   */
+  private async updateItemCompletely(
+    order: IOrderDocument,
+    itemIndex: number,
+    update: UpdateOrderItemDto,
+    session: mongoose.ClientSession,
+    userId?: Types.ObjectId,
+  ): Promise<void> {
+    const item = order.items[itemIndex];
+    const oldQuantity = item.quantity;
+    let hasChanges = false;
+
+    // Actualizar cantidad si se proporciona
+    if (update.quantity !== undefined && update.quantity !== oldQuantity) {
+      const quantityDifference = update.quantity - oldQuantity;
+
+      // Solo manejar stock si NO está en PENDING_PAYMENT
+      if (order.orderStatus !== OrderStatus.PendingPayment) {
+        if (quantityDifference > 0) {
+          // Aumentar cantidad - verificar stock disponible
+          const productVariant = await ProductVariant.findById(item.productVariant).session(session);
+          if (!productVariant) {
+            throw new AppError('ProductVariant no encontrado', 404, 'fail');
+          }
+
+          if (productVariant.stock < quantityDifference) {
+            throw new AppError(
+              `Stock insuficiente. Disponible: ${productVariant.stock}, requerido: ${quantityDifference}`,
+              400,
+              'fail',
+            );
+          }
+
+          // Registrar salida de stock
+          await this.inventoryService.createStockExitWithSession(
+            item.productVariant,
+            quantityDifference,
+            session,
+            StockMovementReason.SALE,
+            `Orden-${order.orderNumber}`,
+            `Aumento de cantidad en orden ${order.orderNumber}`,
+            userId,
+          );
+
+          logger.info('Stock reservado por aumento de cantidad (update_all)', {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            orderStatus: order.orderStatus,
+            productVariantId: item.productVariant,
+            quantityAdded: quantityDifference,
+            userId: userId?.toString(),
+          });
+        } else if (quantityDifference < 0) {
+          // Disminuir cantidad - devolver stock
+          const returnQuantity = Math.abs(quantityDifference);
+          await this.inventoryService.createStockEntryWithSession(
+            item.productVariant,
+            returnQuantity,
+            session,
+            item.costUSDAtPurchase,
+            StockMovementReason.RETURN,
+            `Orden-${order.orderNumber}`,
+            `Reducción de cantidad en orden ${order.orderNumber}`,
+            userId,
+          );
+
+          logger.info('Stock devuelto por reducción de cantidad (update_all)', {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            orderStatus: order.orderStatus,
+            productVariantId: item.productVariant,
+            quantityReturned: returnQuantity,
+            userId: userId?.toString(),
+          });
+        }
+      } else {
+        logger.info('Cantidad actualizada sin movimiento de stock (orden en PENDING_PAYMENT)', {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          productVariantId: item.productVariant,
+          oldQuantity,
+          newQuantity: update.quantity,
+          difference: quantityDifference,
+          userId: userId?.toString(),
+          reason: 'Stock ya liberado por estado PENDING_PAYMENT',
+        });
+      }
+
+      item.quantity = update.quantity;
+      hasChanges = true;
+    }
+
+    // Actualizar precios si se proporcionan
+    if (update.costUSDAtPurchase !== undefined) {
+      item.costUSDAtPurchase = update.costUSDAtPurchase;
+      hasChanges = true;
+    }
+
+    if (update.priceUSDAtPurchase !== undefined) {
+      item.priceUSDAtPurchase = update.priceUSDAtPurchase;
+      hasChanges = true;
+    }
+
+    // Actualizar subTotal y gainUSD
+    if (update.subTotal !== undefined) {
+      // Override manual del subtotal
+      item.subTotal = update.subTotal;
+      hasChanges = true;
+    } else if (hasChanges) {
+      // Recalcular automáticamente si cambiaron precios o cantidad
+      item.subTotal = item.priceUSDAtPurchase * item.quantity;
+    }
+
+    if (update.gainUSD !== undefined) {
+      // Override manual de la ganancia
+      item.gainUSD = update.gainUSD;
+      hasChanges = true;
+    } else if (hasChanges) {
+      // Recalcular automáticamente si cambiaron precios o cantidad
+      item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    }
+
+    if (hasChanges) {
+      logger.info('Item actualizado completamente', {
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        productVariantId: item.productVariant.toString(),
+        oldQuantity,
+        newQuantity: item.quantity,
+        costUSDAtPurchase: item.costUSDAtPurchase,
+        priceUSDAtPurchase: item.priceUSDAtPurchase,
+        subTotal: item.subTotal,
+        gainUSD: item.gainUSD,
+        userId: userId?.toString(),
+      });
+    }
   }
 
   /**

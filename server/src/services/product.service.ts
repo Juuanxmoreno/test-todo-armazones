@@ -15,6 +15,12 @@ import {
   ProductVariantSummaryDto,
   UpdateProductVariantRequestDto,
 } from '@dto/product-variant.dto';
+import {
+  BulkPriceUpdateRequestDto,
+  BulkPriceUpdateResponseDto,
+  PriceUpdateType,
+  ProductVariantPriceUpdateDto,
+} from '@dto/bulk-price-update.dto';
 import { withTransaction } from '@helpers/withTransaction';
 import { AppError } from '@utils/AppError';
 import logger from '@config/logger';
@@ -463,5 +469,227 @@ export class ProductService {
       logger.error('Error searching products', { error, q });
       throw new AppError('Error al buscar productos.', 500, 'error', false);
     }
+  }
+
+  /**
+   * Actualización masiva de precios por categorías o subcategorías
+   */
+  public async bulkUpdatePrices(dto: BulkPriceUpdateRequestDto): Promise<BulkPriceUpdateResponseDto> {
+    try {
+      // Validar que se proporcione al menos una categoría
+      if (!dto.categoryIds || dto.categoryIds.length === 0) {
+        throw new AppError('Debe proporcionar al menos una categoría para la actualización masiva', 400, 'fail', false);
+      }
+
+      // Validar el tipo de actualización y valor
+      this.validatePriceUpdateInput(dto);
+
+      return await withTransaction(async (session) => {
+        // 1. Construir query para encontrar productos afectados
+        const productQuery: FilterQuery<IProductDocument> = {
+          category: { $in: dto.categoryIds },
+        };
+
+        // Si se especifican subcategorías, agregar al filtro
+        if (dto.subcategoryIds && dto.subcategoryIds.length > 0) {
+          productQuery.subcategory = { $in: dto.subcategoryIds };
+        }
+
+        // 2. Encontrar todos los productos que coinciden con los criterios
+        const products = await Product.find(productQuery)
+          .select('_id productModel sku category subcategory')
+          .session(session)
+          .lean();
+
+        if (products.length === 0) {
+          throw new AppError('No se encontraron productos con los criterios especificados', 404, 'fail', false);
+        }
+
+        const productIds = products.map((p) => p._id);
+
+        // 3. Encontrar todas las variantes de estos productos
+        const variants = await ProductVariant.find({
+          product: { $in: productIds },
+        })
+          .select('_id product color priceUSD')
+          .session(session)
+          .lean();
+
+        if (variants.length === 0) {
+          throw new AppError('No se encontraron variantes de productos para actualizar', 404, 'fail', false);
+        }
+
+        // 4. Calcular nuevos precios y validar límites
+        const updatedVariants: ProductVariantPriceUpdateDto[] = [];
+        const skippedVariants: ProductVariantPriceUpdateDto[] = [];
+        const bulkOperations: Array<{
+          updateOne: {
+            filter: { _id: Types.ObjectId };
+            update: { $set: { priceUSD: number } };
+          };
+        }> = [];
+
+        for (const variant of variants) {
+          const product = products.find((p) => p._id.toString() === variant.product.toString());
+          if (!product) continue;
+
+          const oldPrice = variant.priceUSD;
+          const newPrice = this.calculateNewPrice(oldPrice, dto.updateType, dto.value);
+          const priceChange = newPrice - oldPrice;
+          const priceChangePercentage = oldPrice > 0 ? (priceChange / oldPrice) * 100 : 0;
+
+          const variantUpdate: ProductVariantPriceUpdateDto = {
+            id: variant._id.toString(),
+            productId: product._id.toString(),
+            productModel: product.productModel,
+            sku: product.sku,
+            color: variant.color,
+            oldPrice,
+            newPrice,
+            priceChange,
+            priceChangePercentage,
+          };
+
+          // Validar límites de precio
+          const isWithinLimits = this.isWithinPriceLimits(newPrice, dto.minPrice, dto.maxPrice);
+
+          if (isWithinLimits) {
+            updatedVariants.push(variantUpdate);
+            bulkOperations.push({
+              updateOne: {
+                filter: { _id: variant._id },
+                update: { $set: { priceUSD: newPrice } },
+              },
+            });
+          } else {
+            skippedVariants.push(variantUpdate);
+          }
+        }
+
+        // 5. Ejecutar actualización masiva
+        let totalUpdated = 0;
+        if (bulkOperations.length > 0) {
+          const bulkResult = await ProductVariant.bulkWrite(bulkOperations, { session });
+          totalUpdated = bulkResult.modifiedCount;
+        }
+
+        // 6. Calcular estadísticas de resumen
+        const summary = this.calculateUpdateSummary(updatedVariants);
+
+        // 7. Log de la operación
+        logger.info('Bulk price update completed', {
+          categoryIds: dto.categoryIds,
+          subcategoryIds: dto.subcategoryIds,
+          updateType: dto.updateType,
+          value: dto.value,
+          totalFound: variants.length,
+          totalUpdated,
+          totalSkipped: skippedVariants.length,
+        });
+
+        return {
+          totalVariantsFound: variants.length,
+          totalVariantsUpdated: totalUpdated,
+          totalVariantsSkipped: skippedVariants.length,
+          updatedVariants,
+          skippedVariants,
+          summary,
+        };
+      });
+    } catch (error: unknown) {
+      logger.error('Error in bulk price update', { error, dto });
+      throw error instanceof AppError
+        ? error
+        : new AppError('Error al realizar la actualización masiva de precios.', 500, 'error', false, {
+            cause: error instanceof Error ? error.message : String(error),
+          });
+    }
+  }
+
+  /**
+   * Valida los parámetros de entrada para la actualización de precios
+   */
+  private validatePriceUpdateInput(dto: BulkPriceUpdateRequestDto): void {
+    if (dto.updateType === PriceUpdateType.PERCENTAGE) {
+      if (dto.value <= -100) {
+        throw new AppError('El porcentaje de descuento no puede ser mayor al 100%', 400, 'fail', false);
+      }
+    }
+
+    if (dto.updateType === PriceUpdateType.SET_PRICE) {
+      if (dto.value < 0) {
+        throw new AppError('El precio fijo no puede ser negativo', 400, 'fail', false);
+      }
+    }
+
+    if (dto.minPrice !== undefined && dto.minPrice < 0) {
+      throw new AppError('El precio mínimo no puede ser negativo', 400, 'fail', false);
+    }
+
+    if (dto.maxPrice !== undefined && dto.maxPrice < 0) {
+      throw new AppError('El precio máximo no puede ser negativo', 400, 'fail', false);
+    }
+
+    if (dto.minPrice !== undefined && dto.maxPrice !== undefined && dto.minPrice > dto.maxPrice) {
+      throw new AppError('El precio mínimo no puede ser mayor al precio máximo', 400, 'fail', false);
+    }
+  }
+
+  /**
+   * Calcula el nuevo precio según el tipo de actualización
+   */
+  private calculateNewPrice(currentPrice: number, updateType: PriceUpdateType, value: number): number {
+    switch (updateType) {
+      case PriceUpdateType.FIXED_AMOUNT:
+        return Math.max(0, currentPrice + value); // No permitir precios negativos
+
+      case PriceUpdateType.PERCENTAGE:
+        const multiplier = 1 + value / 100;
+        return Math.max(0, currentPrice * multiplier);
+
+      case PriceUpdateType.SET_PRICE:
+        return value;
+
+      default:
+        throw new AppError('Tipo de actualización de precio no válido', 400, 'fail', false);
+    }
+  }
+
+  /**
+   * Verifica si el nuevo precio está dentro de los límites especificados
+   */
+  private isWithinPriceLimits(newPrice: number, minPrice?: number, maxPrice?: number): boolean {
+    if (minPrice !== undefined && newPrice < minPrice) {
+      return false;
+    }
+
+    if (maxPrice !== undefined && newPrice > maxPrice) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Calcula estadísticas de resumen de la actualización
+   */
+  private calculateUpdateSummary(updatedVariants: ProductVariantPriceUpdateDto[]): {
+    averagePriceIncrease: number;
+    totalValueIncrease: number;
+  } {
+    if (updatedVariants.length === 0) {
+      return {
+        averagePriceIncrease: 0,
+        totalValueIncrease: 0,
+      };
+    }
+
+    const totalValueIncrease = updatedVariants.reduce((sum, variant) => sum + variant.priceChange, 0);
+    const averagePriceIncrease = totalValueIncrease / updatedVariants.length;
+
+    return {
+      averagePriceIncrease: Math.round(averagePriceIncrease * 100) / 100, // Redondear a 2 decimales
+      totalValueIncrease: Math.round(totalValueIncrease * 100) / 100,
+    };
   }
 }

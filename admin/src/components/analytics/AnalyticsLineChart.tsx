@@ -34,6 +34,11 @@ const AnalyticsLineChart: React.FC<AnalyticsLineChartProps> = ({
   }), []);
 
   const chartOption = useMemo(() => {
+    // Validación temprana para evitar errores
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+
     const xAxisData = data.map(point => point.label);
     const seriesData = data.map(point => point.metrics[selectedMetric]);
 
@@ -211,7 +216,7 @@ const AnalyticsLineChart: React.FC<AnalyticsLineChartProps> = ({
     );
   }
 
-  if (!data || data.length === 0) {
+  if (!data || data.length === 0 || !chartOption) {
     return (
       <div 
         className="bg-white rounded-lg border border-gray-200 p-6 flex items-center justify-center"

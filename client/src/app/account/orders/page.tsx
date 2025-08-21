@@ -187,8 +187,7 @@ const OrdersPage = () => {
       {previewOrder && (
         <dialog id="preview_modal" className="modal modal-open">
           <div
-            className="modal-box max-w-3xl rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] p-0"
-            style={{ maxHeight: "80vh", overflowY: "auto" }}
+            className="modal-box w-full sm:max-w-3xl rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] p-0 h-screen sm:h-auto sm:max-h-[80vh] overflow-y-auto"
           >
             <div className="sticky top-0 bg-[#FFFFFF] border-b border-[#e1e1e1] flex justify-between items-center h-12 z-30">
               <h3 className="font-bold text-lg text-[#111111] m-0 px-4">
@@ -204,9 +203,9 @@ const OrdersPage = () => {
                 </button>
               </div>
             </div>
-            <div className="p-4 grid grid-cols-12 gap-4">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-4">
               {/* Client Details */}
-              <div className="col-span-5">
+              <div className="col-span-1 sm:col-span-5">
                 <h4 className="font-bold text-md mb-2 text-[#111111]">
                   Datos del cliente:
                 </h4>
@@ -231,7 +230,7 @@ const OrdersPage = () => {
               </div>
 
               {/* Shipping Details */}
-              <div className="col-span-7">
+              <div className="col-span-1 sm:col-span-7">
                 <h4 className="font-bold text-md mb-2 text-[#111111]">
                   Detalles de envío:
                 </h4>

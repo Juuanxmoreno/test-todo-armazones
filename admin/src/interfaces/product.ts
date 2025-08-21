@@ -88,3 +88,43 @@ export interface UpdateProductPayload {
     variantImages?: Record<string, File[]>;
   };
 }
+
+// Bulk Price Update Interfaces
+export enum PriceUpdateType {
+  FIXED_AMOUNT = 'FIXED_AMOUNT',
+  PERCENTAGE = 'PERCENTAGE',
+  SET_PRICE = 'SET_PRICE',
+}
+
+export interface BulkPriceUpdatePayload {
+  categoryIds: string[];
+  subcategoryIds?: string[];
+  updateType: PriceUpdateType;
+  value: number;
+  minPrice?: number;
+  maxPrice?: number;
+}
+
+export interface ProductVariantPriceUpdate {
+  id: string;
+  productId: string;
+  productModel: string;
+  sku: string;
+  color: { name: string; hex: string };
+  oldPrice: number;
+  newPrice: number;
+  priceChange: number;
+  priceChangePercentage: number;
+}
+
+export interface BulkPriceUpdateResponse {
+  totalVariantsFound: number;
+  totalVariantsUpdated: number;
+  totalVariantsSkipped: number;
+  updatedVariants: ProductVariantPriceUpdate[];
+  skippedVariants: ProductVariantPriceUpdate[];
+  summary: {
+    averagePriceIncrease: number;
+    totalValueIncrease: number;
+  };
+}

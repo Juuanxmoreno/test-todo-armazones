@@ -5,7 +5,7 @@ import Image from "next/image";
 import { formatCurrency } from "@/utils/formatCurrency";
 import Link from "next/link";
 import { debounce } from "@/utils/debounce";
-import { Boxes, Plus, SquarePen } from "lucide-react";
+import { Boxes, Plus, SquarePen, DollarSign } from "lucide-react";
 import LoadingSpinner from "@/components/atoms/LoadingSpinner";
 
 const SKELETON_COUNT = 10;
@@ -118,6 +118,11 @@ const ProductsPage = () => {
         <Link href="/products/create">
           <button className="btn rounded-none bg-[#ffffff] text-[#222222] border border-[#e1e1e1] shadow-none">
             <Plus className="size-4" /> Nuevo
+          </button>
+        </Link>
+        <Link href="/products/bulk-price-update">
+          <button className="btn rounded-none bg-[#ffffff] text-[#222222] border border-[#e1e1e1] shadow-none">
+            <DollarSign className="size-4" /> Precios Masivos
           </button>
         </Link>
       </div>

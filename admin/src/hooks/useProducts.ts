@@ -1,6 +1,7 @@
 import {
   CreateProductPayload,
   UpdateProductPayload,
+  BulkPriceUpdatePayload,
 } from "@/interfaces/product";
 import { useAppDispatch, useAppSelector } from "../redux/hooks";
 import {
@@ -9,6 +10,8 @@ import {
   clearSearchResults,
   createProduct,
   updateProduct,
+  bulkUpdatePrices,
+  clearBulkUpdateError,
 } from "../redux/slices/productSlice";
 
 export const useProducts = () => {
@@ -21,6 +24,8 @@ export const useProducts = () => {
     searchResults,
     searchLoading,
     searchError,
+    bulkUpdateLoading,
+    bulkUpdateError,
   } = useAppSelector((state) => state.products);
 
   return {
@@ -31,6 +36,8 @@ export const useProducts = () => {
     searchResults,
     searchLoading,
     searchError,
+    bulkUpdateLoading,
+    bulkUpdateError,
     fetchProducts: (params?: {
       categorySlug?: string;
       subcategorySlug?: string;
@@ -43,5 +50,8 @@ export const useProducts = () => {
       dispatch(createProduct(payload)),
     updateProduct: (payload: UpdateProductPayload) =>
       dispatch(updateProduct(payload)),
+    bulkUpdatePrices: (payload: BulkPriceUpdatePayload) =>
+      dispatch(bulkUpdatePrices(payload)),
+    clearBulkUpdateError: () => dispatch(clearBulkUpdateError()),
   };
 };

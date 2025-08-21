@@ -129,10 +129,15 @@ export const updateOrderBodySchema = z.object({
           productVariantId: z.string().refine((val) => Types.ObjectId.isValid(val), {
             message: 'El productVariantId debe ser un ObjectId válido',
           }),
-          action: z.enum(['increase', 'decrease', 'remove', 'add', 'set'], {
-            message: 'La acción debe ser: increase, decrease, remove, add o set',
+          action: z.enum(['increase', 'decrease', 'remove', 'add', 'set', 'update_prices', 'update_all'], {
+            message: 'La acción debe ser: increase, decrease, remove, add, set, update_prices o update_all',
           }),
           quantity: z.number().min(1, 'La cantidad debe ser mayor a 0').optional(),
+          // Nuevos campos para actualización de precios
+          costUSDAtPurchase: z.number().min(0, 'El costo debe ser mayor o igual a 0').optional(),
+          priceUSDAtPurchase: z.number().min(0, 'El precio debe ser mayor o igual a 0').optional(),
+          subTotal: z.number().min(0, 'El subtotal debe ser mayor o igual a 0').optional(),
+          gainUSD: z.number().optional(), // Puede ser negativo en casos especiales
         })
         .refine(
           (data) => {
@@ -140,10 +145,40 @@ export const updateOrderBodySchema = z.object({
             if (['add', 'increase', 'decrease', 'set'].includes(data.action)) {
               return data.quantity !== undefined;
             }
+            // Para 'update_prices' al menos uno de los precios es requerido
+            if (data.action === 'update_prices') {
+              return data.costUSDAtPurchase !== undefined || data.priceUSDAtPurchase !== undefined;
+            }
+            // Para 'update_all' al menos un campo debe estar presente
+            if (data.action === 'update_all') {
+              return (
+                data.quantity !== undefined ||
+                data.costUSDAtPurchase !== undefined ||
+                data.priceUSDAtPurchase !== undefined ||
+                data.subTotal !== undefined ||
+                data.gainUSD !== undefined
+              );
+            }
             return true;
           },
           {
-            message: 'La cantidad es requerida para las acciones: add, increase, decrease, set',
+            message:
+              'Validación de campos por acción: [add|increase|decrease|set] requieren quantity. [update_prices] requiere al menos costUSDAtPurchase o priceUSDAtPurchase. [update_all] requiere al menos un campo a actualizar.',
+          },
+        )
+        .refine(
+          (data) => {
+            // Validación adicional: si se especifica gainUSD manual, también debe haber costos
+            if (data.action === 'update_all' && data.gainUSD !== undefined) {
+              // Si se da gainUSD manual, se recomienda tener al menos los precios para contexto
+              // Pero no es obligatorio ya que puede ser un override total
+              return true;
+            }
+            return true;
+          },
+          {
+            message:
+              'Cuando se especifica gainUSD manual, se recomienda proporcionar también los precios para mantener contexto.',
           },
         ),
     )

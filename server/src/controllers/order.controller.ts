@@ -324,6 +324,65 @@ export class OrderController {
     }
   };
 
+  /**
+   * Método de conveniencia para actualizar solo precios de items
+   * Simplifica el proceso para casos comunes
+   */
+  public updateItemPrices = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderId } = req.params;
+      const { items } = req.body;
+
+      if (!orderId) {
+        throw new AppError('Falta orderId', 400, 'fail');
+      }
+
+      const userId = getSessionUserId(req.session);
+
+      // Convertir a formato UpdateOrderDto con action update_prices
+      const updateData = {
+        items: items.map(
+          (item: { productVariantId: string; costUSDAtPurchase: number; priceUSDAtPurchase: number }) => ({
+            ...item,
+            action: 'update_prices' as const,
+            productVariantId: new Types.ObjectId(item.productVariantId),
+          }),
+        ),
+      };
+
+      const updatedOrder = await this.orderService.updateOrder(new Types.ObjectId(orderId), updateData, userId);
+
+      logger.info('Precios de items actualizados exitosamente', {
+        orderId,
+        updatedBy: userId.toString(),
+        itemsCount: items.length,
+      });
+
+      const response: ApiResponse<typeof updatedOrder> = {
+        status: 'success',
+        message: 'Precios de items actualizados exitosamente',
+        data: updatedOrder,
+      };
+      res.status(200).json(response);
+    } catch (error) {
+      logger.error('Error al actualizar precios de items', {
+        error,
+        orderId: req.params?.orderId,
+        body: req.body,
+      });
+
+      if (!(error instanceof AppError)) {
+        return next(
+          new AppError('Error inesperado al actualizar precios de items', 500, 'error', false, {
+            cause: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+
+      return next(error);
+    }
+  };
+
   public bulkUpdateOrderStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = getSessionUserId(req.session);

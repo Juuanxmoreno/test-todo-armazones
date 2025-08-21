@@ -34,6 +34,17 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
    * Implementación específica para calcular métricas totales de órdenes
    */
   protected async calculateTotalMetrics(dateRange: IAnalyticsDateRange): Promise<IOrderAnalyticsMetrics> {
+    // Validar que el rango de fechas sea válido
+    if (!dateRange || !dateRange.startDate || !dateRange.endDate) {
+      console.error('Invalid date range provided to calculateTotalMetrics:', dateRange);
+      return this.createEmptyMetrics();
+    }
+
+    if (dateRange.startDate >= dateRange.endDate) {
+      console.error('Start date must be before end date:', dateRange);
+      return this.createEmptyMetrics();
+    }
+
     const pipeline: PipelineStage[] = [
       // Filtrar por rango de fechas y estados válidos (excluir canceladas)
       {
@@ -135,6 +146,17 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
     granularity: AnalyticsGranularity,
     timezone: AnalyticsTimeZone,
   ): Promise<Array<{ timestamp: Date; label: string; metrics: IOrderAnalyticsMetrics }>> {
+    // Validar que el rango de fechas sea válido
+    if (!dateRange || !dateRange.startDate || !dateRange.endDate) {
+      console.error('Invalid date range provided to calculateBreakdown:', dateRange);
+      return [];
+    }
+
+    if (dateRange.startDate >= dateRange.endDate) {
+      console.error('Start date must be before end date:', dateRange);
+      return [];
+    }
+
     // Determinar el formato de fecha según la granularidad
     const dateFormat = this.getDateFormatForGranularity(granularity);
 
@@ -252,6 +274,12 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
     ];
 
     const results = await Order.aggregate<IOrderBreakdownAggregationResult>(pipeline);
+
+    // Validar que results no sea undefined o null
+    if (!results || !Array.isArray(results)) {
+      console.error('Analytics breakdown aggregation returned invalid results:', results);
+      return [];
+    }
 
     // Convertir resultados al formato esperado
     return results.map((result) => {

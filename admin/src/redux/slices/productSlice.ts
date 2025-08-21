@@ -6,6 +6,8 @@ import type {
   Product,
   ProductsResponse,
   UpdateProductPayload,
+  BulkPriceUpdatePayload,
+  BulkPriceUpdateResponse,
 } from "../../interfaces/product";
 import type { ApiResponse } from "../../types/api";
 import { getErrorMessage } from "../../types/api";
@@ -18,6 +20,8 @@ interface ProductsState {
   searchResults: Product[];
   searchLoading: boolean;
   searchError: string | null;
+  bulkUpdateLoading: boolean;
+  bulkUpdateError: string | null;
 }
 
 const initialState: ProductsState = {
@@ -28,6 +32,8 @@ const initialState: ProductsState = {
   searchResults: [],
   searchLoading: false,
   searchError: null,
+  bulkUpdateLoading: false,
+  bulkUpdateError: null,
 };
 
 // Fetch products with optional filters and pagination
@@ -150,6 +156,23 @@ export const updateProduct = createAsyncThunk<Product, UpdateProductPayload>(
   }
 );
 
+// Actualización masiva de precios
+export const bulkUpdatePrices = createAsyncThunk<
+  BulkPriceUpdateResponse,
+  BulkPriceUpdatePayload
+>("products/bulkUpdatePrices", async (payload, { rejectWithValue }) => {
+  try {
+    const { data } = await axiosInstance.patch<
+      ApiResponse<BulkPriceUpdateResponse>
+    >("/products/bulk-update-prices", payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+    return data.data!;
+  } catch (err: unknown) {
+    return rejectWithValue(getErrorMessage(err));
+  }
+});
+
 const productSlice = createSlice({
   name: "products",
   initialState,
@@ -157,6 +180,9 @@ const productSlice = createSlice({
     clearSearchResults(state) {
       state.searchResults = [];
       state.searchError = null;
+    },
+    clearBulkUpdateError(state) {
+      state.bulkUpdateError = null;
     },
   },
   extraReducers: (builder) => {
@@ -225,9 +251,24 @@ const productSlice = createSlice({
       .addCase(updateProduct.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
+      })
+
+      // bulkUpdatePrices
+      .addCase(bulkUpdatePrices.pending, (state) => {
+        state.bulkUpdateLoading = true;
+        state.bulkUpdateError = null;
+      })
+      .addCase(bulkUpdatePrices.fulfilled, (state) => {
+        state.bulkUpdateLoading = false;
+        // Opcionalmente, podrías actualizar los productos en el estado
+        // pero es mejor refrescar la lista después de la actualización masiva
+      })
+      .addCase(bulkUpdatePrices.rejected, (state, action) => {
+        state.bulkUpdateLoading = false;
+        state.bulkUpdateError = action.payload as string;
       });
   },
 });
 
-export const { clearSearchResults } = productSlice.actions;
+export const { clearSearchResults, clearBulkUpdateError } = productSlice.actions;
 export default productSlice.reducer;

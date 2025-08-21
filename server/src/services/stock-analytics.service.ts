@@ -45,6 +45,39 @@ export interface IProductStockAnalytics {
   totalValuationAtRetail: number;
 }
 
+// Interface para analytics por subcategoría
+export interface ISubcategoryStockAnalytics {
+  subcategoryId: string;
+  subcategoryName: string;
+  totalStock: number;
+  totalValuationAtCost: number;
+  totalValuationAtRetail: number;
+  productCount: number;
+  variantCount: number;
+}
+
+// Interface para analytics mixtas de categoría y subcategoría
+export interface ICategorySubcategoryStockAnalytics {
+  categoryId: string;
+  categoryName: string;
+  subcategories: Array<{
+    subcategoryId: string;
+    subcategoryName: string;
+    totalStock: number;
+    totalValuationAtCost: number;
+    totalValuationAtRetail: number;
+    productCount: number;
+    variantCount: number;
+  }>;
+  categoryTotals: {
+    totalStock: number;
+    totalValuationAtCost: number;
+    totalValuationAtRetail: number;
+    productCount: number;
+    variantCount: number;
+  };
+}
+
 /**
  * Servicio para analytics de stock y valuación de inventario
  */
@@ -345,6 +378,197 @@ export class StockAnalyticsService {
     ];
 
     return await ProductVariant.aggregate(pipeline);
+  }
+
+  /**
+   * Obtiene métricas de stock por subcategoría
+   */
+  public async getStockAnalyticsBySubcategory(): Promise<ISubcategoryStockAnalytics[]> {
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          stock: { $gt: 0 },
+        },
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'product',
+          foreignField: '_id',
+          as: 'productInfo',
+        },
+      },
+      {
+        $unwind: '$productInfo',
+      },
+      {
+        $lookup: {
+          from: 'subcategories',
+          localField: 'productInfo.subcategory',
+          foreignField: '_id',
+          as: 'subcategoryInfo',
+        },
+      },
+      {
+        $unwind: '$subcategoryInfo',
+      },
+      {
+        $group: {
+          _id: '$productInfo.subcategory',
+          subcategoryName: { $first: '$subcategoryInfo.name' },
+          totalStock: { $sum: '$stock' },
+          totalValuationAtCost: {
+            $sum: { $multiply: ['$stock', '$averageCostUSD'] },
+          },
+          totalValuationAtRetail: {
+            $sum: { $multiply: ['$stock', '$priceUSD'] },
+          },
+          products: { $addToSet: '$product' },
+          variantCount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          subcategoryId: { $toString: '$_id' },
+          subcategoryName: 1,
+          totalStock: 1,
+          totalValuationAtCost: { $round: ['$totalValuationAtCost', 2] },
+          totalValuationAtRetail: { $round: ['$totalValuationAtRetail', 2] },
+          productCount: { $size: '$products' },
+          variantCount: 1,
+        },
+      },
+      {
+        $sort: { totalValuationAtRetail: -1 },
+      },
+    ];
+
+    return await ProductVariant.aggregate<ISubcategoryStockAnalytics>(pipeline);
+  }
+
+  /**
+   * Obtiene métricas de stock con vista jerárquica: categorías con sus subcategorías
+   */
+  public async getStockAnalyticsByCategoryWithSubcategories(): Promise<ICategorySubcategoryStockAnalytics[]> {
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          stock: { $gt: 0 },
+        },
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'product',
+          foreignField: '_id',
+          as: 'productInfo',
+        },
+      },
+      {
+        $unwind: '$productInfo',
+      },
+      {
+        $unwind: '$productInfo.category',
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'productInfo.category',
+          foreignField: '_id',
+          as: 'categoryInfo',
+        },
+      },
+      {
+        $unwind: '$categoryInfo',
+      },
+      {
+        $lookup: {
+          from: 'subcategories',
+          localField: 'productInfo.subcategory',
+          foreignField: '_id',
+          as: 'subcategoryInfo',
+        },
+      },
+      {
+        $unwind: '$subcategoryInfo',
+      },
+      // Agrupar por categoría y subcategoría
+      {
+        $group: {
+          _id: {
+            categoryId: '$productInfo.category',
+            subcategoryId: '$productInfo.subcategory',
+          },
+          categoryName: { $first: '$categoryInfo.name' },
+          subcategoryName: { $first: '$subcategoryInfo.name' },
+          totalStock: { $sum: '$stock' },
+          totalValuationAtCost: {
+            $sum: { $multiply: ['$stock', '$averageCostUSD'] },
+          },
+          totalValuationAtRetail: {
+            $sum: { $multiply: ['$stock', '$priceUSD'] },
+          },
+          products: { $addToSet: '$product' },
+          variantCount: { $sum: 1 },
+        },
+      },
+      // Agrupar por categoría para obtener la estructura jerárquica
+      {
+        $group: {
+          _id: '$_id.categoryId',
+          categoryName: { $first: '$categoryName' },
+          subcategories: {
+            $push: {
+              subcategoryId: { $toString: '$_id.subcategoryId' },
+              subcategoryName: '$subcategoryName',
+              totalStock: '$totalStock',
+              totalValuationAtCost: { $round: ['$totalValuationAtCost', 2] },
+              totalValuationAtRetail: { $round: ['$totalValuationAtRetail', 2] },
+              productCount: { $size: '$products' },
+              variantCount: '$variantCount',
+            },
+          },
+          // Calcular totales por categoría
+          categoryTotalStock: { $sum: '$totalStock' },
+          categoryTotalValuationAtCost: { $sum: '$totalValuationAtCost' },
+          categoryTotalValuationAtRetail: { $sum: '$totalValuationAtRetail' },
+          categoryProducts: { $push: '$products' },
+          categoryVariantCount: { $sum: '$variantCount' },
+        },
+      },
+      {
+        $project: {
+          categoryId: { $toString: '$_id' },
+          categoryName: 1,
+          subcategories: {
+            $sortArray: {
+              input: '$subcategories',
+              sortBy: { totalValuationAtRetail: -1 },
+            },
+          },
+          categoryTotals: {
+            totalStock: '$categoryTotalStock',
+            totalValuationAtCost: { $round: ['$categoryTotalValuationAtCost', 2] },
+            totalValuationAtRetail: { $round: ['$categoryTotalValuationAtRetail', 2] },
+            productCount: {
+              $size: {
+                $reduce: {
+                  input: '$categoryProducts',
+                  initialValue: [],
+                  in: { $setUnion: ['$$value', '$$this'] },
+                },
+              },
+            },
+            variantCount: '$categoryVariantCount',
+          },
+        },
+      },
+      {
+        $sort: { 'categoryTotals.totalValuationAtRetail': -1 },
+      },
+    ];
+
+    return await ProductVariant.aggregate<ICategorySubcategoryStockAnalytics>(pipeline);
   }
 
   /**

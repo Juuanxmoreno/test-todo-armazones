@@ -78,8 +78,13 @@ export interface ShippingAddress {
 // Payload para actualizar items de la orden
 export interface UpdateOrderItemPayload {
   productVariantId: string;
-  action: "increase" | "decrease" | "remove" | "add" | "set";
+  action: "increase" | "decrease" | "remove" | "add" | "set" | "update_prices" | "update_all";
   quantity?: number;
+  // Nuevos campos para actualización de precios y valores financieros
+  costUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
+  priceUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
+  subTotal?: number; // Para 'update_all' (override manual del subtotal)
+  gainUSD?: number; // Para 'update_all' (override manual de la ganancia)
 }
 
 export interface UpdateOrderPayload {
@@ -142,4 +147,25 @@ export interface OrderStatusUpdateResult {
   order?: Order;
   stockConflicts?: StockConflictItem[];
   message: string;
+}
+
+// Payload específico para actualización rápida de precios
+export interface UpdateItemPricesPayload {
+  orderId: string;
+  items: {
+    productVariantId: string;
+    costUSDAtPurchase?: number;
+    priceUSDAtPurchase?: number;
+  }[];
+}
+
+// Payload para actualización completa de un item
+export interface UpdateItemCompletePayload {
+  orderId: string;
+  productVariantId: string;
+  quantity?: number;
+  costUSDAtPurchase?: number;
+  priceUSDAtPurchase?: number;
+  subTotal?: number;
+  gainUSD?: number;
 }

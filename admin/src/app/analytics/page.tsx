@@ -37,18 +37,18 @@ const AnalyticsPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="text-center">
             <div className="flex justify-center mb-4">
               <div className="p-3 bg-blue-100 rounded-full">
                 <BarChart3 className="h-12 w-12 text-blue-600" />
               </div>
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Analytics</h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">Analytics</h1>
+            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
               Analiza el rendimiento de tu negocio con datos en tiempo real.
               Obtén insights valiosos sobre ventas, usuarios y productos.
             </p>
@@ -56,7 +56,7 @@ const AnalyticsPage = () => {
         </div>
 
         {/* Tabs Navigation */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <AnalyticsTabNavigation tabs={tabs} />
         </div>
 

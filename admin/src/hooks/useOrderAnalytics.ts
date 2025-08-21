@@ -49,7 +49,13 @@ export const useOrderAnalytics = () => {
   const changePeriod = useCallback(
     async (period: AnalyticsPeriod) => {
       dispatch(setPeriod(period));
-      // Hacer fetch inmediatamente con el nuevo período
+      
+      // Para Custom, no hacer fetch automático - esperar a que se establezcan las fechas
+      if (period === AnalyticsPeriod.Custom) {
+        return;
+      }
+      
+      // Hacer fetch inmediatamente con el nuevo período para otros casos
       const query: OrderAnalyticsQueryDto = {
         period,
         granularity: period === AnalyticsPeriod.Today ? AnalyticsGranularity.Hour 

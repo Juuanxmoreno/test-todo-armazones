@@ -15,6 +15,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Check, Package, ShoppingBag } from "lucide-react";
 import LoadingSpinner from "@/components/atoms/LoadingSpinner";
+import { useRouter } from "next/navigation";
 
 const CheckoutPage = () => {
   const { cart, loading, fetchCart, resetCart } = useCart();
@@ -30,7 +31,6 @@ const CheckoutPage = () => {
   const [deliveryType, setDeliveryType] = useState(
     DeliveryType.HomeDelivery
   );
-  const [success, setSuccess] = useState(false);
   const [syncError, setSyncError] = useState<CartSyncError | null>(null);
 
   const {
@@ -110,6 +110,8 @@ const CheckoutPage = () => {
   const isCartEmpty = !cart?.items?.length;
   const isOrderInProgress = orderLoading;
 
+  const router = useRouter();
+
   const onSubmit = async (data: AddressFormData) => {
     if (error) resetError();
     const payload: CreateOrderPayload = {
@@ -121,9 +123,16 @@ const CheckoutPage = () => {
       paymentMethod,
     };
     const result = await placeOrder(payload);
-    if (createOrder.fulfilled.match(result)) {
+      if (createOrder.fulfilled.match(result)) {
+      // Reset cart and redirect to order received page with order id
       resetCart();
-      setSuccess(true);
+      const createdOrderId = result.payload.id;
+      if (createdOrderId) {
+        router.push(`/checkout/order-received?orderId=${createdOrderId}`);
+      } else {
+        // fallback: go to orders list
+        router.push(`/account/orders`);
+      }
     } else if (createOrder.rejected.match(result)) {
       // Si el error es de tipo CartSyncError
       if (
@@ -138,24 +147,13 @@ const CheckoutPage = () => {
     }
   };
 
-  const modalRef = useRef<HTMLDialogElement>(null);
   const cartSyncModalRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    if (success && modalRef.current) {
-      modalRef.current.showModal();
-    }
-  }, [success]);
 
   useEffect(() => {
     if (syncError && cartSyncModalRef.current) {
       cartSyncModalRef.current.showModal();
     }
   }, [syncError]);
-
-  const closeModalAndGo = () => {
-    modalRef.current?.close();
-  };
 
   const closeSyncModal = () => {
     setSyncError(null);
@@ -661,11 +659,6 @@ const CheckoutPage = () => {
             {typeof error === "string" && error && (
               <div className="text-red-500 text-sm">{error}</div>
             )}
-            {success && (
-              <div className="text-green-600 font-semibold">
-                ¡Orden creada con éxito!
-              </div>
-            )}
             <button
               type="submit"
               className={`mt-4 btn rounded-none shadow-none border-none h-12 px-6 w-full transition-colors duration-300 ease-in-out ${
@@ -703,33 +696,6 @@ const CheckoutPage = () => {
           </a>
         </p>
       </div>
-
-      <dialog id="order_success_modal" className="modal" ref={modalRef}>
-        <div className="modal-box bg-white text-[#111111] rounded-none">
-          <h3 className="font-bold text-lg">¡Orden creada con éxito!</h3>
-          <p className="py-4">
-            Gracias por tu compra. Pronto recibirás un correo de confirmación
-            con los detalles de tu pedido. Tambien puedes revisar el estado de
-            tu pedido en{" "}
-            <Link
-              href="/account/orders"
-              className="text-[#000000] underline-animate"
-            >
-              Mis Pedidos
-            </Link>
-            .
-          </p>
-          <div className="modal-action">
-            <Link
-              href="/account/orders"
-              className="btn rounded-none shadow-none border-none transition-colors duration-300 ease-in-out h-12 text-base px-6 w-full"
-              onClick={closeModalAndGo}
-            >
-              Ir a Mis Pedidos
-            </Link>
-          </div>
-        </div>
-      </dialog>
 
       {/* Modal de sincronización de carrito */}
       <dialog id="cart_sync_modal" className="modal" ref={cartSyncModalRef}>

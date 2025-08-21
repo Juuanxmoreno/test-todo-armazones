@@ -11,10 +11,14 @@ import {
   ProductStockAnalyticsDto,
   LowStockAlertDto,
   CategoryStockAnalyticsDto,
+  SubcategoryStockAnalyticsDto,
+  CategorySubcategoryStockAnalyticsDto,
   StockValuationResponseDto,
   ProductStockAnalyticsResponseDto,
   LowStockAlertsResponseDto,
   CategoryStockAnalyticsResponseDto,
+  SubcategoryStockAnalyticsResponseDto,
+  CategorySubcategoryStockAnalyticsResponseDto,
 } from "@/interfaces/analytics";
 
 import { ApiResponse, getErrorMessage } from "@/types/api";
@@ -27,6 +31,20 @@ export const fetchOrderAnalytics = createAsyncThunk<
   { rejectValue: string }
 >("analytics/fetchOrderAnalytics", async (params, { rejectWithValue }) => {
   try {
+    // Validar que para período custom se tengan las fechas
+    if (params.period === AnalyticsPeriod.Custom) {
+      if (!params.customRange || !params.customRange.startDate || !params.customRange.endDate) {
+        return rejectWithValue("Para período personalizado se requieren fecha de inicio y fin");
+      }
+      
+      // Validar que startDate sea anterior a endDate
+      const startDate = new Date(params.customRange.startDate);
+      const endDate = new Date(params.customRange.endDate);
+      if (startDate >= endDate) {
+        return rejectWithValue("La fecha de inicio debe ser anterior a la fecha de fin");
+      }
+    }
+
     // Construir query params
     const queryParams = new URLSearchParams();
     queryParams.append("period", params.period);
@@ -218,6 +236,52 @@ export const fetchCategoryStockAnalytics = createAsyncThunk<
   }
 });
 
+// Thunk para obtener analytics por subcategoría
+export const fetchSubcategoryStockAnalytics = createAsyncThunk<
+  SubcategoryStockAnalyticsDto[],
+  void,
+  { rejectValue: string }
+>("analytics/fetchSubcategoryStockAnalytics", async (_, { rejectWithValue }) => {
+  try {
+    const response = await axiosInstance.get<SubcategoryStockAnalyticsResponseDto>(
+      "/analytics/stock/by-subcategory"
+    );
+
+    if (response.data.status === "success" && response.data.data) {
+      return response.data.data;
+    } else {
+      return rejectWithValue(
+        "Error al obtener analytics por subcategoría"
+      );
+    }
+  } catch (error) {
+    return rejectWithValue(getErrorMessage(error));
+  }
+});
+
+// Thunk para obtener analytics jerárquicas: categorías con subcategorías
+export const fetchCategorySubcategoryStockAnalytics = createAsyncThunk<
+  CategorySubcategoryStockAnalyticsDto[],
+  void,
+  { rejectValue: string }
+>("analytics/fetchCategorySubcategoryStockAnalytics", async (_, { rejectWithValue }) => {
+  try {
+    const response = await axiosInstance.get<CategorySubcategoryStockAnalyticsResponseDto>(
+      "/analytics/stock/by-category-with-subcategories"
+    );
+
+    if (response.data.status === "success" && response.data.data) {
+      return response.data.data;
+    } else {
+      return rejectWithValue(
+        "Error al obtener analytics jerárquicas de categorías y subcategorías"
+      );
+    }
+  } catch (error) {
+    return rejectWithValue(getErrorMessage(error));
+  }
+});
+
 // Thunk para obtener analytics detalladas de un usuario específico
 export const fetchUserDetailedAnalytics = createAsyncThunk<
   UserDetailedAnalyticsResponseDto,
@@ -287,17 +351,23 @@ interface AnalyticsState {
     productAnalytics: ProductStockAnalyticsDto[] | null;
     lowStockAlerts: LowStockAlertDto[] | null;
     categoryAnalytics: CategoryStockAnalyticsDto[] | null;
+    subcategoryAnalytics: SubcategoryStockAnalyticsDto[] | null;
+    categorySubcategoryAnalytics: CategorySubcategoryStockAnalyticsDto[] | null;
     loading: {
       valuation: boolean;
       productAnalytics: boolean;
       lowStockAlerts: boolean;
       categoryAnalytics: boolean;
+      subcategoryAnalytics: boolean;
+      categorySubcategoryAnalytics: boolean;
     };
     error: {
       valuation: string | null;
       productAnalytics: string | null;
       lowStockAlerts: string | null;
       categoryAnalytics: string | null;
+      subcategoryAnalytics: string | null;
+      categorySubcategoryAnalytics: string | null;
     };
   };
 
@@ -346,17 +416,23 @@ const initialState: AnalyticsState = {
     productAnalytics: null,
     lowStockAlerts: null,
     categoryAnalytics: null,
+    subcategoryAnalytics: null,
+    categorySubcategoryAnalytics: null,
     loading: {
       valuation: false,
       productAnalytics: false,
       lowStockAlerts: false,
       categoryAnalytics: false,
+      subcategoryAnalytics: false,
+      categorySubcategoryAnalytics: false,
     },
     error: {
       valuation: null,
       productAnalytics: null,
       lowStockAlerts: null,
       categoryAnalytics: null,
+      subcategoryAnalytics: null,
+      categorySubcategoryAnalytics: null,
     },
   },
   loading: {
@@ -514,16 +590,30 @@ const analyticsSlice = createSlice({
       state.stockAnalytics.error.categoryAnalytics = null;
     },
 
+    clearSubcategoryStockAnalytics: (state) => {
+      state.stockAnalytics.subcategoryAnalytics = null;
+      state.stockAnalytics.error.subcategoryAnalytics = null;
+    },
+
+    clearCategorySubcategoryStockAnalytics: (state) => {
+      state.stockAnalytics.categorySubcategoryAnalytics = null;
+      state.stockAnalytics.error.categorySubcategoryAnalytics = null;
+    },
+
     clearAllStockAnalytics: (state) => {
       state.stockAnalytics.valuation = null;
       state.stockAnalytics.productAnalytics = null;
       state.stockAnalytics.lowStockAlerts = null;
       state.stockAnalytics.categoryAnalytics = null;
+      state.stockAnalytics.subcategoryAnalytics = null;
+      state.stockAnalytics.categorySubcategoryAnalytics = null;
       state.stockAnalytics.error = {
         valuation: null,
         productAnalytics: null,
         lowStockAlerts: null,
         categoryAnalytics: null,
+        subcategoryAnalytics: null,
+        categorySubcategoryAnalytics: null,
       };
     },
   },
@@ -634,6 +724,36 @@ const analyticsSlice = createSlice({
         state.stockAnalytics.loading.categoryAnalytics = false;
         state.stockAnalytics.error.categoryAnalytics = action.payload || "Error al cargar analytics por categoría";
       })
+
+      // fetchSubcategoryStockAnalytics
+      .addCase(fetchSubcategoryStockAnalytics.pending, (state) => {
+        state.stockAnalytics.loading.subcategoryAnalytics = true;
+        state.stockAnalytics.error.subcategoryAnalytics = null;
+      })
+      .addCase(fetchSubcategoryStockAnalytics.fulfilled, (state, action) => {
+        state.stockAnalytics.loading.subcategoryAnalytics = false;
+        state.stockAnalytics.subcategoryAnalytics = action.payload;
+        state.stockAnalytics.error.subcategoryAnalytics = null;
+      })
+      .addCase(fetchSubcategoryStockAnalytics.rejected, (state, action) => {
+        state.stockAnalytics.loading.subcategoryAnalytics = false;
+        state.stockAnalytics.error.subcategoryAnalytics = action.payload || "Error al cargar analytics por subcategoría";
+      })
+
+      // fetchCategorySubcategoryStockAnalytics
+      .addCase(fetchCategorySubcategoryStockAnalytics.pending, (state) => {
+        state.stockAnalytics.loading.categorySubcategoryAnalytics = true;
+        state.stockAnalytics.error.categorySubcategoryAnalytics = null;
+      })
+      .addCase(fetchCategorySubcategoryStockAnalytics.fulfilled, (state, action) => {
+        state.stockAnalytics.loading.categorySubcategoryAnalytics = false;
+        state.stockAnalytics.categorySubcategoryAnalytics = action.payload;
+        state.stockAnalytics.error.categorySubcategoryAnalytics = null;
+      })
+      .addCase(fetchCategorySubcategoryStockAnalytics.rejected, (state, action) => {
+        state.stockAnalytics.loading.categorySubcategoryAnalytics = false;
+        state.stockAnalytics.error.categorySubcategoryAnalytics = action.payload || "Error al cargar analytics jerárquicas";
+      })
   },
 });
 
@@ -657,6 +777,8 @@ export const {
   clearProductStockAnalytics,
   clearLowStockAlerts,
   clearCategoryStockAnalytics,
+  clearSubcategoryStockAnalytics,
+  clearCategorySubcategoryStockAnalytics,
   clearAllStockAnalytics,
 } = analyticsSlice.actions;
 
