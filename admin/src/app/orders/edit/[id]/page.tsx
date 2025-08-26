@@ -8,6 +8,7 @@ import type {
   Order,
   UpdateOrderPayload,
   OrderItem,
+  ApplyRefundPayload,
 } from "@/interfaces/order";
 import type { ProductVariant } from "@/interfaces/product";
 import { ShippingMethod, PaymentMethod, OrderStatus } from "@/enums/order.enum";
@@ -19,44 +20,55 @@ import EditItemPricesModal from "@/components/EditItemPricesModal";
 import { AnalyticsPeriod } from "@/enums/analytics.enum";
 import StockConflictAlert from "@/components/StockConflictAlert";
 import PendingPaymentInfo from "@/components/PendingPaymentInfo";
+import { downloadOrderPDF } from "@/utils/downloadOrderPDF";
 
 const EditOrderPage = () => {
   // All hooks at the top, always called in the same order
   const { id } = useParams();
   const router = useRouter();
-  const { 
-    getOrderById, 
-    orderById, 
-    loading, 
-    error, 
+  const {
+    getOrderById,
+    orderById,
+    loading,
+    error,
     updateOrderData,
     stockAvailability,
     stockCheckLoading,
     stockCheckError,
     checkStockAvailability,
-  clearStockInfo,
-  clearOrderById
+    clearStockInfo,
+    clearOrderById,
+    refundLoading,
+    refundError,
+    refundEligibility,
+    refundEligibilityLoading,
+    applyOrderRefund,
+    checkOrderRefundEligibility,
+    clearRefundInfo,
   } = useOrders();
   const [form, setForm] = useState<Order | null>(null);
   const [originalForm, setOriginalForm] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [productQuery, setProductQuery] = useState("");
-  
+
   const [itemOperationLoading, setItemOperationLoading] = useState<
     string | null
   >(null);
   const [isPaymentMethodUpdating, setIsPaymentMethodUpdating] = useState(false);
   const [isOrderStatusUpdating, setIsOrderStatusUpdating] = useState(false);
-  const [isAllowViewInvoiceUpdating, setIsAllowViewInvoiceUpdating] = useState(false);
-  
+  const [isAllowViewInvoiceUpdating, setIsAllowViewInvoiceUpdating] =
+    useState(false);
+
   // Estado para manejar errores inline
-  const [errors, setErrors] = useState<{
-    id: string;
-    message: string;
-    type: 'error' | 'success' | 'warning';
-    timestamp: number;
-  }[]>([]);
-  
+  const [errors, setErrors] = useState<
+    {
+      id: string;
+      message: string;
+      type: "error" | "success" | "warning";
+      timestamp: number;
+    }[]
+  >([]);
+
   // Estados para el modal de edición de precios
   const [editPricesModal, setEditPricesModal] = useState<{
     isOpen: boolean;
@@ -68,14 +80,27 @@ const EditOrderPage = () => {
     loading: false,
   });
 
+  // Estados para el sistema de reembolsos
+  const [refundForm, setRefundForm] = useState<{
+    isOpen: boolean;
+    type: 'fixed' | 'percentage';
+    amount: string;
+    reason: string;
+  }>({
+    isOpen: false,
+    type: 'fixed',
+    amount: '',
+    reason: '',
+  });
+
   const { searchProducts, searchResults, searchLoading, clearSearchResults } =
     useProducts();
-  
+
   // Users analytics hook for customer history
   const {
     loadUserDetailedAnalytics,
     currentUserMetrics,
-    isLoadingUserDetails
+    isLoadingUserDetails,
   } = useUsersAnalytics();
 
   // Cada vez que cambia el id en la ruta, limpiar el formulario local
@@ -126,52 +151,61 @@ const EditOrderPage = () => {
   }, [form?.id, form?.orderStatus, checkStockAvailability, clearStockInfo]);
 
   // Funciones helper para manejar errores
-  const addError = (message: string, type: 'error' | 'success' | 'warning' = 'error') => {
+  const addError = (
+    message: string,
+    type: "error" | "success" | "warning" = "error"
+  ) => {
     const newError = {
       id: Date.now().toString(),
       message,
       type,
       timestamp: Date.now(),
     };
-    setErrors(prev => [...prev, newError]);
-    
+    setErrors((prev) => [...prev, newError]);
+
     // Auto-remover después de 5 segundos para success y warning, 8 segundos para error
-    setTimeout(() => {
-      setErrors(prev => prev.filter(err => err.id !== newError.id));
-    }, type === 'error' ? 8000 : 5000);
+    setTimeout(
+      () => {
+        setErrors((prev) => prev.filter((err) => err.id !== newError.id));
+      },
+      type === "error" ? 8000 : 5000
+    );
   };
 
   const removeError = (id: string) => {
-    setErrors(prev => prev.filter(err => err.id !== id));
+    setErrors((prev) => prev.filter((err) => err.id !== id));
   };
 
-  const addSuccess = (message: string) => addError(message, 'success');
-  const addWarning = (message: string) => addError(message, 'warning');
+  const addSuccess = (message: string) => addError(message, "success");
+  const addWarning = (message: string) => addError(message, "warning");
 
   if (loading || !form) return <div className="p-8">Cargando orden...</div>;
-  if (error) return (
-    <div className="min-h-screen bg-[#FFFFFF] pt-4 pb-10 px-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-              <span className="text-red-600 font-bold">!</span>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-red-800">Error al cargar la orden</h3>
-              <p className="text-red-600 mt-1">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-              >
-                Reintentar
-              </button>
+  if (error)
+    return (
+      <div className="min-h-screen bg-[#FFFFFF] pt-4 pb-10 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                <span className="text-red-600 font-bold">!</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-red-800">
+                  Error al cargar la orden
+                </h3>
+                <p className="text-red-600 mt-1">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-3 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Reintentar
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
 
   // Handler para cambios en los campos de dirección
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,10 +259,14 @@ const EditOrderPage = () => {
         // Actualizar estado local con la respuesta del servidor
         setForm(result);
         setOriginalForm(result);
-        addSuccess('Método de pago actualizado correctamente');
+        addSuccess("Método de pago actualizado correctamente");
       } catch (error) {
         console.error("Error al actualizar método de pago:", error);
-        addError(`Error al actualizar el método de pago: ${error || "Error desconocido"}`);
+        addError(
+          `Error al actualizar el método de pago: ${
+            error || "Error desconocido"
+          }`
+        );
 
         // Revertir el cambio local en caso de error
         if (originalForm) {
@@ -256,10 +294,14 @@ const EditOrderPage = () => {
         // Actualizar estado local con la respuesta del servidor
         setForm(result);
         setOriginalForm(result);
-        addSuccess('Estado de la orden actualizado correctamente');
+        addSuccess("Estado de la orden actualizado correctamente");
       } catch (error) {
         console.error("Error al actualizar estado de la orden:", error);
-        addError(`Error al actualizar el estado de la orden: ${error || "Error desconocido"}`);
+        addError(
+          `Error al actualizar el estado de la orden: ${
+            error || "Error desconocido"
+          }`
+        );
 
         // Revertir el cambio local en caso de error
         if (originalForm) {
@@ -294,7 +336,9 @@ const EditOrderPage = () => {
   };
 
   // Handler para cambios en allowViewInvoice checkbox
-  const handleAllowViewInvoiceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAllowViewInvoiceChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const { checked } = e.target;
 
     // Actualizar estado local inmediatamente
@@ -315,15 +359,25 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
-      addSuccess(`Permiso de ver factura ${checked ? 'habilitado' : 'deshabilitado'} correctamente`);
+      addSuccess(
+        `Permiso de ver factura ${
+          checked ? "habilitado" : "deshabilitado"
+        } correctamente`
+      );
     } catch (error) {
       console.error("Error al actualizar permiso de ver factura:", error);
-      addError(`Error al actualizar el permiso de ver factura: ${error || "Error desconocido"}`);
+      addError(
+        `Error al actualizar el permiso de ver factura: ${
+          error || "Error desconocido"
+        }`
+      );
 
       // Revertir el cambio local en caso de error
       if (originalForm) {
         setForm((prev) =>
-          prev ? { ...prev, allowViewInvoice: originalForm.allowViewInvoice } : prev
+          prev
+            ? { ...prev, allowViewInvoice: originalForm.allowViewInvoice }
+            : prev
         );
       }
     } finally {
@@ -341,7 +395,7 @@ const EditOrderPage = () => {
   const handleAddVariant = async (variant: ProductVariant) => {
     if (!form) return;
     if (form.items.some((v) => v.productVariant.id === variant.id)) {
-      addWarning('Este producto ya está en la orden');
+      addWarning("Este producto ya está en la orden");
       return;
     }
 
@@ -395,10 +449,12 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
-      addSuccess('Producto eliminado correctamente');
+      addSuccess("Producto eliminado correctamente");
     } catch (error) {
       console.error("Error al eliminar variante:", error);
-      addError(`Error al eliminar el producto: ${error || "Error desconocido"}`);
+      addError(
+        `Error al eliminar el producto: ${error || "Error desconocido"}`
+      );
     } finally {
       setItemOperationLoading(null);
     }
@@ -437,7 +493,9 @@ const EditOrderPage = () => {
       addSuccess(`Cantidad actualizada a ${newQuantity}`);
     } catch (error) {
       console.error("Error al cambiar cantidad:", error);
-      addError(`Error al actualizar la cantidad: ${error || "Error desconocido"}`);
+      addError(
+        `Error al actualizar la cantidad: ${error || "Error desconocido"}`
+      );
     } finally {
       setItemOperationLoading(null);
     }
@@ -475,7 +533,7 @@ const EditOrderPage = () => {
   ) => {
     if (!form) return;
 
-    setEditPricesModal(prev => ({ ...prev, loading: true }));
+    setEditPricesModal((prev) => ({ ...prev, loading: true }));
 
     try {
       const updatePayload = {
@@ -493,13 +551,13 @@ const EditOrderPage = () => {
       // Actualizar estado local con la respuesta del servidor
       setForm(result);
       setOriginalForm(result);
-      addSuccess('Precios actualizados correctamente');
+      addSuccess("Precios actualizados correctamente");
     } catch (error) {
       console.error("Error al actualizar precios:", error);
       addError(`Error al actualizar precios: ${error || "Error desconocido"}`);
       throw error; // Re-throw para que el modal maneje el error
     } finally {
-      setEditPricesModal(prev => ({ ...prev, loading: false }));
+      setEditPricesModal((prev) => ({ ...prev, loading: false }));
     }
   };
 
@@ -632,9 +690,9 @@ const EditOrderPage = () => {
         // Actualizar el estado local con los datos del servidor
         setForm(result);
         setOriginalForm(result);
-        addSuccess('Orden actualizada correctamente');
+        addSuccess("Orden actualizada correctamente");
       } else {
-        addWarning('No hay cambios que guardar');
+        addWarning("No hay cambios que guardar");
       }
     } catch (error) {
       console.error("Error al actualizar la orden:", error);
@@ -644,6 +702,66 @@ const EditOrderPage = () => {
     }
   };
 
+  // Funciones para manejar reembolsos
+  const handleOpenRefundForm = () => {
+    if (form?.id) {
+      checkOrderRefundEligibility(form.id);
+    }
+    setRefundForm(prev => ({ ...prev, isOpen: true }));
+  };
+
+  const handleCloseRefundForm = () => {
+    setRefundForm({
+      isOpen: false,
+      type: 'fixed',
+      amount: '',
+      reason: '',
+    });
+    clearRefundInfo();
+  };
+
+  const handleRefundFormChange = (field: 'type' | 'amount' | 'reason', value: string) => {
+    setRefundForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleApplyRefund = async () => {
+    if (!form?.id || !refundForm.amount) return;
+
+    const amount = parseFloat(refundForm.amount);
+    if (isNaN(amount) || amount <= 0) {
+      addError("El monto del reembolso debe ser un número válido mayor a 0");
+      return;
+    }
+
+    if (refundForm.type === 'percentage' && amount > 100) {
+      addError("El porcentaje no puede ser mayor a 100");
+      return;
+    }
+
+    const payload: ApplyRefundPayload = {
+      orderId: form.id,
+      type: refundForm.type,
+      amount,
+      reason: refundForm.reason || undefined,
+    };
+
+    applyOrderRefund(
+      payload,
+      (response) => {
+        if (response.success) {
+          addSuccess("Reembolso aplicado correctamente");
+          handleCloseRefundForm();
+          // La orden se actualiza automáticamente por el Redux state
+        } else {
+          addError(response.message || "Error al aplicar el reembolso");
+        }
+      },
+      (error) => {
+        addError(`Error al aplicar el reembolso: ${error || "Error desconocido"}`);
+      }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#FFFFFF] pt-4 pb-10 px-4">
       <div className="max-w-7xl mx-auto">
@@ -651,614 +769,727 @@ const EditOrderPage = () => {
           {/* Main Order Form */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-none shadow-none p-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-[#111111]">
-            Editar Orden #{form.orderNumber}
-            {hasChanges() && (
-              <span className="ml-2 text-sm px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
-                Cambios pendientes
-              </span>
-            )}
-          </h2>
-          <button
-            type="button"
-            onClick={() => router.push("/orders")}
-            className="btn btn-sm rounded-none shadow-none border-none px-4 text-[#222222] bg-[#e0e0e0]"
-          >
-            Volver
-          </button>
-        </div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-[#111111]">
+                  Editar Orden #{form.orderNumber}
+                  {hasChanges() && (
+                    <span className="ml-2 text-sm px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                      Cambios pendientes
+                    </span>
+                  )}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => router.push("/orders")}
+                  className="btn btn-sm rounded-none shadow-none border-none px-4 text-[#222222] bg-[#e0e0e0]"
+                >
+                  Volver
+                </button>
+              </div>
 
-        {/* Sistema de notificaciones/errores inline */}
-        {errors.length > 0 && (
-          <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
-            {errors.map((error) => (
-              <div
-                key={error.id}
-                className={`
+              {/* Sistema de notificaciones/errores inline */}
+              {errors.length > 0 && (
+                <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+                  {errors.map((error) => (
+                    <div
+                      key={error.id}
+                      className={`
                   flex items-center justify-between p-4 rounded-lg shadow-lg border
-                  ${error.type === 'error' 
-                    ? 'bg-red-50 border-red-200 text-red-800' 
-                    : error.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-800'
-                    : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                  ${
+                    error.type === "error"
+                      ? "bg-red-50 border-red-200 text-red-800"
+                      : error.type === "success"
+                      ? "bg-green-50 border-green-200 text-green-800"
+                      : "bg-yellow-50 border-yellow-200 text-yellow-800"
                   }
                   animate-in slide-in-from-right duration-300
                 `}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    error.type === 'error' 
-                      ? 'bg-red-500' 
-                      : error.type === 'success'
-                      ? 'bg-green-500'
-                      : 'bg-yellow-500'
-                  }`} />
-                  <span className="text-sm font-medium">{error.message}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeError(error.id)}
-                  className={`ml-2 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hover:opacity-70 ${
-                    error.type === 'error' 
-                      ? 'text-red-600 hover:bg-red-100' 
-                      : error.type === 'success'
-                      ? 'text-green-600 hover:bg-green-100'
-                      : 'text-yellow-600 hover:bg-yellow-100'
-                  }`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Alerta de conflictos de stock para órdenes PENDING_PAYMENT */}
-        {form.orderStatus === OrderStatus.PendingPayment && stockAvailability && stockAvailability.hasConflicts && (
-          <StockConflictAlert
-            conflicts={stockAvailability.conflicts}
-            onRefreshStock={handleRefreshStock}
-            isRefreshing={stockCheckLoading}
-            className="mb-6"
-          />
-        )}
-
-        {/* Indicador de verificación de stock */}
-        {form.orderStatus === OrderStatus.PendingPayment && stockCheckLoading && !stockAvailability && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span className="text-sm text-blue-700">Verificando disponibilidad de stock...</span>
-            </div>
-          </div>
-        )}
-
-        {/* Error de verificación de stock */}
-        {form.orderStatus === OrderStatus.PendingPayment && stockCheckError && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-red-700">Error al verificar stock: {stockCheckError}</span>
-              <button
-                type="button"
-                onClick={handleRefreshStock}
-                className="text-sm text-red-600 underline hover:no-underline"
-              >
-                Reintentar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Indicador de stock OK para órdenes PENDING_PAYMENT */}
-        {form.orderStatus === OrderStatus.PendingPayment && 
-         stockAvailability && 
-         !stockAvailability.hasConflicts && 
-         !stockCheckLoading && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-green-700 font-medium">
-                  ✅ Stock disponible para todos los productos
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleRefreshStock}
-                disabled={stockCheckLoading}
-                className="text-sm text-green-600 underline hover:no-underline"
-              >
-                Verificar nuevamente
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Información sobre estado PENDING_PAYMENT */}
-        <PendingPaymentInfo 
-          orderStatus={form.orderStatus} 
-          className="mb-6"
-        />
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          {/* Fecha de creación */}
-          <div className="mb-4">
-            <label className="block text-sm text-[#7A7A7A] mb-2">
-              Fecha de creación *
-            </label>
-            <input
-              type="datetime-local"
-              value={form.createdAt ? form.createdAt.slice(0, 16) : ""}
-              onChange={handleCreatedAtChange}
-              className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-              style={{ borderColor: "#e1e1e1" }}
-              required
-            />
-          </div>
-          {/* Estado de la orden */}
-          <div className="mb-6 p-4 border border-[#e1e1e1] rounded-none bg-[#f9f9f9]">
-            <label className="block text-sm text-[#7A7A7A] mb-2">
-              Estado de la orden *
-            </label>
-            <div className="flex items-center gap-4">
-              <select
-                name="orderStatus"
-                value={form.orderStatus}
-                onChange={handleFieldChange}
-                disabled={isOrderStatusUpdating}
-                className="select rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] px-3 py-2 flex-1"
-              >
-                <option value={OrderStatus.Processing}>Processing</option>
-                <option value={OrderStatus.OnHold}>On Hold</option>
-                <option value={OrderStatus.PendingPayment}>Pending Payment</option>
-                <option value={OrderStatus.Completed}>Completed</option>
-                <option value={OrderStatus.Cancelled}>Cancelled</option>
-                <option value={OrderStatus.Refunded}>Refunded</option>
-              </select>
-              {isOrderStatusUpdating && (
-                <span className="loading loading-spinner loading-sm"></span>
-              )}
-            </div>
-            <p className="text-xs text-[#7A7A7A] mt-2">
-              El estado se actualiza automáticamente al seleccionar una nueva opción.
-            </p>
-          </div>
-          {/* Permitir ver factura */}
-          <div className="mb-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.allowViewInvoice}
-                onChange={handleAllowViewInvoiceChange}
-                disabled={isAllowViewInvoiceUpdating}
-                className="checkbox checkbox-sm border-[#e1e1e1] checked:bg-[#222222] checked:border-[#222222]"
-              />
-              <span className="text-sm text-[#222222]">
-                Permitir ver factura de compra
-              </span>
-              {isAllowViewInvoiceUpdating && (
-                <span className="loading loading-spinner loading-xs ml-2"></span>
-              )}
-            </label>
-          </div>
-          {/* Dirección de envío */}
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              "firstName",
-              "lastName",
-              "email",
-              "phoneNumber",
-              "dni",
-              "streetAddress",
-              "city",
-              "state",
-              "postalCode",
-              "companyName",
-            ].map((name) => (
-              <div
-                key={name}
-                className={
-                  name === "email" || name === "streetAddress"
-                    ? "col-span-2"
-                    : ""
-                }
-              >
-                <label
-                  htmlFor={name}
-                  className="block mb-1 text-sm"
-                  style={{ color: "#7A7A7A" }}
-                >
-                  {name === "firstName"
-                    ? "Nombre *"
-                    : name === "lastName"
-                    ? "Apellidos *"
-                    : name === "email"
-                    ? "Email *"
-                    : name === "phoneNumber"
-                    ? "Teléfono *"
-                    : name === "dni"
-                    ? "DNI *"
-                    : name === "streetAddress"
-                    ? "Dirección *"
-                    : name === "city"
-                    ? "Ciudad *"
-                    : name === "state"
-                    ? "Provincia *"
-                    : name === "postalCode"
-                    ? "Código Postal *"
-                    : name === "companyName"
-                    ? "Nombre de Empresa (opcional)"
-                    : name}
-                </label>
-                <input
-                  id={name}
-                  type={name === "email" ? "email" : "text"}
-                  value={
-                    form.shippingAddress[name as keyof ShippingAddress] || ""
-                  }
-                  onChange={handleAddressChange}
-                  name={name}
-                  className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-                  style={{ borderColor: "#e1e1e1" }}
-                  required={!["companyName"].includes(name)}
-                />
-              </div>
-            ))}
-          </div>
-          {/* Métodos de envío y pago */}
-          <div className="flex flex-col gap-4 mt-4">
-            <div>
-              <label className="block text-sm text-[#7A7A7A] mb-2">
-                Método de envío *
-              </label>
-              <div className="flex flex-col gap-2">
-                {[ShippingMethod.Motorcycle, ShippingMethod.ParcelCompany].map(
-                  (method) => (
-                    <label
-                      key={method}
-                      className="flex items-center gap-2 cursor-pointer"
                     >
-                      <input
-                        type="radio"
-                        name="shippingMethod"
-                        value={method}
-                        checked={form.shippingMethod === method}
-                        onChange={handleFieldChange}
-                        className="radio border-[#e1e1e1] checked:bg-[#222222]"
-                      />
-                      <span className="text-[#222222] text-sm">
-                        {method === ShippingMethod.Motorcycle
-                          ? "Moto"
-                          : "Transporte/Empresa de encomienda"}
-                        <span className="text-xs text-[#7A7A7A]">
-                          {" "}
-                          (Costo de envío extra a cargo del Cliente)
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            error.type === "error"
+                              ? "bg-red-500"
+                              : error.type === "success"
+                              ? "bg-green-500"
+                              : "bg-yellow-500"
+                          }`}
+                        />
+                        <span className="text-sm font-medium">
+                          {error.message}
                         </span>
-                      </span>
-                    </label>
-                  )
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-[#7A7A7A] mb-2">
-                Método de pago *
-              </label>
-              <div className="flex flex-col gap-2">
-                {[PaymentMethod.BankTransfer, PaymentMethod.CashOnDelivery].map(
-                  (method) => (
-                    <label
-                      key={method}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value={method}
-                        checked={form.paymentMethod === method}
-                        onChange={handleFieldChange}
-                        disabled={isPaymentMethodUpdating}
-                        className="radio border-[#e1e1e1] checked:bg-[#222222]"
-                      />
-                      <span className="text-[#222222] text-sm">
-                        {method === PaymentMethod.BankTransfer
-                          ? "Transferencia / Depósito bancario"
-                          : "Efectivo contra reembolso"}
-                        {method === PaymentMethod.BankTransfer && (
-                          <span className="text-xs text-[#7A7A7A]">
-                            {" "}
-                            (4% extra)
-                          </span>
-                        )}
-                      </span>
-                      {isPaymentMethodUpdating && (
-                        <span className="loading loading-spinner loading-xs ml-2"></span>
-                      )}
-                    </label>
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-          {/* Campos de entrega */}
-          <div className="flex flex-col gap-4 mt-4">
-            <div>
-              <label className="block text-sm text-[#7A7A7A] mb-2">
-                Ventana de entrega (opcional)
-              </label>
-              <input
-                type="text"
-                name="deliveryWindow"
-                value={form.shippingAddress.deliveryWindow || ""}
-                onChange={handleDeliveryFieldChange}
-                placeholder="Ej: 9AM-5PM, Lunes a Viernes"
-                className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-                style={{ borderColor: "#e1e1e1" }}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-[#7A7A7A] mb-2">
-                Monto declarado de envío (opcional)
-              </label>
-              <input
-                type="text"
-                name="declaredShippingAmount"
-                value={form.shippingAddress.declaredShippingAmount || ""}
-                onChange={handleDeliveryFieldChange}
-                placeholder="Ej: $50.00"
-                className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-                style={{ borderColor: "#e1e1e1" }}
-              />
-            </div>
-          </div>
-          {/* Edición de ítems */}
-          <div className="mb-2">
-            <label className="block mb-1 text-sm" style={{ color: "#7A7A7A" }}>
-              Buscar producto o SKU para agregar variante
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                placeholder="Buscar producto o SKU"
-                value={productQuery}
-                onChange={(e) => setProductQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleProductSearch(e as React.FormEvent);
-                  }
-                }}
-                className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-                style={{ borderColor: "#e1e1e1" }}
-              />
-              <button
-                type="button"
-                className="btn rounded-none shadow-none border-none h-12 px-4 text-white bg-[#222222]"
-                onClick={handleProductSearch}
-              >
-                Buscar
-              </button>
-              <button
-                type="button"
-                className="btn rounded-none shadow-none border-none h-12 px-4 text-[#222222] bg-[#e0e0e0]"
-                onClick={clearSearchResults}
-              >
-                Limpiar
-              </button>
-            </div>
-            {searchLoading && (
-              <div className="text-[#222222] mt-1">Buscando productos...</div>
-            )}
-            {searchResults.length > 0 && (
-              <div className="mt-2">
-                <div className="font-semibold mb-1 text-[#222222]">
-                  Resultados:
-                </div>
-                <ul className="space-y-1">
-                  {searchResults.map((product) => (
-                    <li
-                      key={product.id}
-                      className="border rounded p-2 bg-white"
-                    >
-                      <div className="font-medium text-[#222222]">
-                        {product.productModel} ({product.sku})
                       </div>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {product.variants.map((variant) => (
-                          <button
-                            key={variant.id}
-                            type="button"
-                            className="btn btn-xs btn-outline text-[#222222] border-[#bdbdbd] bg-white rounded-none"
-                            onClick={() => handleAddVariant(variant)}
-                            disabled={
-                              form.items.some(
-                                (v) => v.productVariant.id === variant.id
-                              ) || itemOperationLoading === variant.id
-                            }
-                          >
-                            {itemOperationLoading === variant.id ? (
-                              <span className="loading loading-spinner loading-xs"></span>
-                            ) : (
-                              `${variant.color.name} (Stock: ${variant.stock})`
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          {/* Lista de variantes seleccionadas */}
-          {form.items.length > 0 && (
-            <div className="mb-2">
-              <div className="font-semibold mb-1 text-[#222222]">
-                Ítems de la orden:
-              </div>
-              <div className="overflow-x-auto">
-                <table className="table border border-[#e1e1e1]">
-                  {/* head */}
-                  <thead>
-                    <tr className="text-[#111111]">
-                      <th>Producto</th>
-                      <th>Precio</th>
-                      <th>Cantidad</th>
-                      <th>Subtotal</th>
-                      <th>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.items.map((item) => (
-                      <tr
-                        key={item.productVariant.id}
-                        className="text-[#222222]"
+                      <button
+                        type="button"
+                        onClick={() => removeError(error.id)}
+                        className={`ml-2 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hover:opacity-70 ${
+                          error.type === "error"
+                            ? "text-red-600 hover:bg-red-100"
+                            : error.type === "success"
+                            ? "text-green-600 hover:bg-green-100"
+                            : "text-yellow-600 hover:bg-yellow-100"
+                        }`}
                       >
-                        <td>
-                          <div className="flex items-start gap-3">
-                            {/* Imagen del producto */}
-                            <div className="flex-shrink-0">
-                              <Image
-                                src={process.env.NEXT_PUBLIC_API_URL + item.productVariant.images[0] || "/placeholder-image.jpg"}
-                                alt={`${item.productVariant.product.productModel} - ${item.productVariant.color.name}`}
-                                width={60}
-                                height={60}
-                                className="rounded-md object-cover border border-gray-200"
-                              />
-                            </div>
-                            
-                            {/* Información del producto */}
-                            <div className="flex flex-col min-w-0 flex-1">
-                              <span className="font-medium text-[#222222] break-words">
-                                {item.productVariant.product.productModel}{" "}
-                                {item.productVariant.product.sku}
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Alerta de conflictos de stock para órdenes PENDING_PAYMENT */}
+              {form.orderStatus === OrderStatus.PendingPayment &&
+                stockAvailability &&
+                stockAvailability.hasConflicts && (
+                  <StockConflictAlert
+                    conflicts={stockAvailability.conflicts}
+                    onRefreshStock={handleRefreshStock}
+                    isRefreshing={stockCheckLoading}
+                    className="mb-6"
+                  />
+                )}
+
+              {/* Indicador de verificación de stock */}
+              {form.orderStatus === OrderStatus.PendingPayment &&
+                stockCheckLoading &&
+                !stockAvailability && (
+                  <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-blue-700">
+                        Verificando disponibilidad de stock...
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+              {/* Error de verificación de stock */}
+              {form.orderStatus === OrderStatus.PendingPayment &&
+                stockCheckError && (
+                  <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-red-700">
+                        Error al verificar stock: {stockCheckError}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRefreshStock}
+                        className="text-sm text-red-600 underline hover:no-underline"
+                      >
+                        Reintentar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              {/* Indicador de stock OK para órdenes PENDING_PAYMENT */}
+              {form.orderStatus === OrderStatus.PendingPayment &&
+                stockAvailability &&
+                !stockAvailability.hasConflicts &&
+                !stockCheckLoading && (
+                  <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 bg-green-500 rounded-full"></div>
+                        <span className="text-sm text-green-700 font-medium">
+                          ✅ Stock disponible para todos los productos
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRefreshStock}
+                        disabled={stockCheckLoading}
+                        className="text-sm text-green-600 underline hover:no-underline"
+                      >
+                        Verificar nuevamente
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              {/* Información sobre estado PENDING_PAYMENT */}
+              <PendingPaymentInfo
+                orderStatus={form.orderStatus}
+                className="mb-6"
+              />
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                {/* Fecha de creación */}
+                <div className="mb-4">
+                  <label className="block text-sm text-[#7A7A7A] mb-2">
+                    Fecha de creación *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={form.createdAt ? form.createdAt.slice(0, 16) : ""}
+                    onChange={handleCreatedAtChange}
+                    className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                    style={{ borderColor: "#e1e1e1" }}
+                    required
+                  />
+                </div>
+                {/* Estado de la orden */}
+                <div className="mb-6 p-4 border border-[#e1e1e1] rounded-none bg-[#f9f9f9]">
+                  <label className="block text-sm text-[#7A7A7A] mb-2">
+                    Estado de la orden *
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <select
+                      name="orderStatus"
+                      value={form.orderStatus}
+                      onChange={handleFieldChange}
+                      disabled={isOrderStatusUpdating}
+                      className="select rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] px-3 py-2 flex-1"
+                    >
+                      <option value={OrderStatus.Processing}>Processing</option>
+                      <option value={OrderStatus.OnHold}>On Hold</option>
+                      <option value={OrderStatus.PendingPayment}>
+                        Pending Payment
+                      </option>
+                      <option value={OrderStatus.Completed}>Completed</option>
+                      <option value={OrderStatus.Cancelled}>Cancelled</option>
+                      <option value={OrderStatus.Refunded}>Refunded</option>
+                    </select>
+                    {isOrderStatusUpdating && (
+                      <span className="loading loading-spinner loading-sm"></span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[#7A7A7A] mt-2">
+                    El estado se actualiza automáticamente al seleccionar una
+                    nueva opción.
+                  </p>
+                </div>
+                {/* Permitir ver factura */}
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.allowViewInvoice}
+                      onChange={handleAllowViewInvoiceChange}
+                      disabled={isAllowViewInvoiceUpdating}
+                      className="checkbox checkbox-sm border-[#e1e1e1] checked:bg-[#222222] checked:border-[#222222]"
+                    />
+                    <span className="text-sm text-[#222222]">
+                      Permitir ver factura de compra
+                    </span>
+                    {isAllowViewInvoiceUpdating && (
+                      <span className="loading loading-spinner loading-xs ml-2"></span>
+                    )}
+                  </label>
+                </div>
+                {/* Dirección de envío */}
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    "firstName",
+                    "lastName",
+                    "email",
+                    "phoneNumber",
+                    "dni",
+                    "streetAddress",
+                    "city",
+                    "state",
+                    "postalCode",
+                    "companyName",
+                  ].map((name) => (
+                    <div
+                      key={name}
+                      className={
+                        name === "email" || name === "streetAddress"
+                          ? "col-span-2"
+                          : ""
+                      }
+                    >
+                      <label
+                        htmlFor={name}
+                        className="block mb-1 text-sm"
+                        style={{ color: "#7A7A7A" }}
+                      >
+                        {name === "firstName"
+                          ? "Nombre *"
+                          : name === "lastName"
+                          ? "Apellidos *"
+                          : name === "email"
+                          ? "Email *"
+                          : name === "phoneNumber"
+                          ? "Teléfono *"
+                          : name === "dni"
+                          ? "DNI *"
+                          : name === "streetAddress"
+                          ? "Dirección *"
+                          : name === "city"
+                          ? "Ciudad *"
+                          : name === "state"
+                          ? "Provincia *"
+                          : name === "postalCode"
+                          ? "Código Postal *"
+                          : name === "companyName"
+                          ? "Nombre de Empresa (opcional)"
+                          : name}
+                      </label>
+                      <input
+                        id={name}
+                        type={name === "email" ? "email" : "text"}
+                        value={
+                          form.shippingAddress[name as keyof ShippingAddress] ||
+                          ""
+                        }
+                        onChange={handleAddressChange}
+                        name={name}
+                        className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                        style={{ borderColor: "#e1e1e1" }}
+                        required={!["companyName"].includes(name)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {/* Métodos de envío y pago */}
+                <div className="flex flex-col gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm text-[#7A7A7A] mb-2">
+                      Método de envío *
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        ShippingMethod.Motorcycle,
+                        ShippingMethod.ParcelCompany,
+                      ].map((method) => (
+                        <label
+                          key={method}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <input
+                            type="radio"
+                            name="shippingMethod"
+                            value={method}
+                            checked={form.shippingMethod === method}
+                            onChange={handleFieldChange}
+                            className="radio border-[#e1e1e1] checked:bg-[#222222]"
+                          />
+                          <span className="text-[#222222] text-sm">
+                            {method === ShippingMethod.Motorcycle
+                              ? "Moto"
+                              : "Transporte/Empresa de encomienda"}
+                            <span className="text-xs text-[#7A7A7A]">
+                              {" "}
+                              (Costo de envío extra a cargo del Cliente)
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-[#7A7A7A] mb-2">
+                      Método de pago *
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        PaymentMethod.BankTransfer,
+                        PaymentMethod.CashOnDelivery,
+                      ].map((method) => (
+                        <label
+                          key={method}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value={method}
+                            checked={form.paymentMethod === method}
+                            onChange={handleFieldChange}
+                            disabled={isPaymentMethodUpdating}
+                            className="radio border-[#e1e1e1] checked:bg-[#222222]"
+                          />
+                          <span className="text-[#222222] text-sm">
+                            {method === PaymentMethod.BankTransfer
+                              ? "Transferencia / Depósito bancario"
+                              : "Efectivo contra reembolso"}
+                            {method === PaymentMethod.BankTransfer && (
+                              <span className="text-xs text-[#7A7A7A]">
+                                {" "}
+                                (4% extra)
                               </span>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-sm text-gray-500">
-                                  Color: {item.productVariant.color.name}
-                                </span>
-                                <span
-                                  className="w-4 h-4 rounded-full border border-gray-300"
-                                  style={{
-                                    backgroundColor:
-                                      item.productVariant.color.hex,
-                                  }}
-                                ></span>
-                              </div>
+                            )}
+                          </span>
+                          {isPaymentMethodUpdating && (
+                            <span className="loading loading-spinner loading-xs ml-2"></span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Campos de entrega */}
+                <div className="flex flex-col gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm text-[#7A7A7A] mb-2">
+                      Ventana de entrega (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      name="deliveryWindow"
+                      value={form.shippingAddress.deliveryWindow || ""}
+                      onChange={handleDeliveryFieldChange}
+                      placeholder="Ej: 9AM-5PM, Lunes a Viernes"
+                      className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                      style={{ borderColor: "#e1e1e1" }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-[#7A7A7A] mb-2">
+                      Monto declarado de envío (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      name="declaredShippingAmount"
+                      value={form.shippingAddress.declaredShippingAmount || ""}
+                      onChange={handleDeliveryFieldChange}
+                      placeholder="Ej: $50.00"
+                      className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                      style={{ borderColor: "#e1e1e1" }}
+                    />
+                  </div>
+                </div>
+                {/* Edición de ítems */}
+                <div className="mb-2">
+                  <label
+                    className="block mb-1 text-sm"
+                    style={{ color: "#7A7A7A" }}
+                  >
+                    Buscar producto o SKU para agregar variante
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Buscar producto o SKU"
+                      value={productQuery}
+                      onChange={(e) => setProductQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleProductSearch(e as React.FormEvent);
+                        }
+                      }}
+                      className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                      style={{ borderColor: "#e1e1e1" }}
+                    />
+                    <button
+                      type="button"
+                      className="btn rounded-none shadow-none border-none h-12 px-4 text-white bg-[#222222]"
+                      onClick={handleProductSearch}
+                    >
+                      Buscar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn rounded-none shadow-none border-none h-12 px-4 text-[#222222] bg-[#e0e0e0]"
+                      onClick={clearSearchResults}
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                  {searchLoading && (
+                    <div className="text-[#222222] mt-1">
+                      Buscando productos...
+                    </div>
+                  )}
+                  {searchResults.length > 0 && (
+                    <div className="mt-2">
+                      <div className="font-semibold mb-1 text-[#222222]">
+                        Resultados:
+                      </div>
+                      <ul className="space-y-1">
+                        {searchResults.map((product) => (
+                          <li
+                            key={product.id}
+                            className="border rounded p-2 bg-white"
+                          >
+                            <div className="font-medium text-[#222222]">
+                              {product.productModel} ({product.sku})
                             </div>
-                          </div>
-                        </td>
-                        <td>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {product.variants.map((variant) => (
+                                <button
+                                  key={variant.id}
+                                  type="button"
+                                  className="btn btn-xs btn-outline text-[#222222] border-[#bdbdbd] bg-white rounded-none"
+                                  onClick={() => handleAddVariant(variant)}
+                                  disabled={
+                                    form.items.some(
+                                      (v) => v.productVariant.id === variant.id
+                                    ) || itemOperationLoading === variant.id
+                                  }
+                                >
+                                  {itemOperationLoading === variant.id ? (
+                                    <span className="loading loading-spinner loading-xs"></span>
+                                  ) : (
+                                    `${variant.color.name} (Stock: ${variant.stock})`
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                {/* Lista de variantes seleccionadas */}
+                {form.items.length > 0 && (
+                  <div className="mb-2">
+                    <div className="font-semibold mb-1 text-[#222222]">
+                      Ítems de la orden:
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="table table-auto w-full min-w-[720px] border border-[#e1e1e1]">
+                        {/* head */}
+                        <thead>
+                          <tr className="text-[#111111]">
+                            <th>Producto</th>
+                            <th>Cost of Goods</th>
+                            <th>Precio</th>
+                            <th>Cantidad</th>
+                            <th>Subtotal</th>
+                            <th>Contribución Marginal</th>
+                            <th>Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {form.items.map((item) => (
+                            <tr
+                              key={item.productVariant.id}
+                              className="text-[#222222]"
+                            >
+                              <td>
+                                <div className="flex items-start gap-3">
+                                  {/* Imagen del producto (responsive) */}
+                                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 overflow-hidden rounded-md bg-gray-50 border border-gray-200">
+                                    <Image
+                                      src={
+                                        (process.env.NEXT_PUBLIC_API_URL ||
+                                          "") +
+                                        (item.productVariant.images?.[0] ||
+                                          "/placeholder-image.jpg")
+                                      }
+                                      alt={`${
+                                        item.productVariant.product.productModel
+                                      } - ${
+                                        item.productVariant.color?.name ||
+                                        "variant"
+                                      }`}
+                                      width={64}
+                                      height={64}
+                                      className="object-cover w-full h-full"
+                                    />
+                                  </div>
+
+                                  {/* Información del producto (truncate en pantallas pequeñas) */}
+                                  <div className="flex flex-col min-w-0 flex-1">
+                                    <span
+                                      className="font-medium text-[#222222] truncate block"
+                                      title={`${item.productVariant.product.productModel} ${item.productVariant.product.sku}`}
+                                    >
+                                      {item.productVariant.product.productModel}{" "}
+                                      {item.productVariant.product.sku}
+                                    </span>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span
+                                        className="text-sm text-gray-500 truncate"
+                                        title={`Color: ${item.productVariant.color?.name}`}
+                                      >
+                                        Color: {item.productVariant.color?.name}
+                                      </span>
+                                      <span
+                                        className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0"
+                                        style={{
+                                          backgroundColor:
+                                            item.productVariant.color?.hex ||
+                                            "transparent",
+                                        }}
+                                        aria-hidden
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                {formatCurrency(
+                                  item.costUSDAtPurchase * item.quantity,
+                                  "en-US",
+                                  "USD"
+                                )}
+                              </td>
+                              <td>
+                                {formatCurrency(
+                                  item.priceUSDAtPurchase,
+                                  "en-US",
+                                  "USD"
+                                )}
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={(e) =>
+                                    handleQuantityChange(
+                                      item.productVariant.id,
+                                      Number(e.target.value)
+                                    )
+                                  }
+                                  disabled={
+                                    itemOperationLoading ===
+                                    item.productVariant.id
+                                  }
+                                  className="input input-xs w-16 text-[#222222] bg-white border-[#bdbdbd] rounded-md shadow-sm focus:ring-2 focus:ring-[#388e3c] focus:outline-none disabled:opacity-50"
+                                />
+                              </td>
+                              <td>
+                                {formatCurrency(item.subTotal, "en-US", "USD")}
+                              </td>
+                              <td>
+                                {formatCurrency(item.gainUSD, "en-US", "USD")}
+                              </td>
+                              <td>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-xs text-white bg-[#2196f3] border-[#2196f3] rounded-md shadow-md hover:bg-[#1976d2] hover:border-[#1976d2] transition-colors duration-200 ease-in-out"
+                                    onClick={() => handleEditPrices(item)}
+                                    disabled={
+                                      itemOperationLoading ===
+                                      item.productVariant.id
+                                    }
+                                    title="Editar precios"
+                                  >
+                                    <Edit3 size={16} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-xs text-white bg-[#d32f2f] border-[#d32f2f] rounded-md shadow-md hover:bg-[#b71c1c] hover:border-[#b71c1c] transition-colors duration-200 ease-in-out"
+                                    onClick={() =>
+                                      handleRemoveVariant(
+                                        item.productVariant.id
+                                      )
+                                    }
+                                    disabled={
+                                      itemOperationLoading ===
+                                      item.productVariant.id
+                                    }
+                                    title="Eliminar producto"
+                                  >
+                                    {itemOperationLoading ===
+                                    item.productVariant.id ? (
+                                      <span className="loading loading-spinner loading-xs"></span>
+                                    ) : (
+                                      <Trash size={16} />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {/* Subtotal y Total */}
+                <div className="mt-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-[#222222]">
+                      Subtotal:
+                    </span>
+                    <span className="text-sm text-[#222222]">
+                      {formatCurrency(form.subTotal, "en-US", "USD")}
+                    </span>
+                  </div>
+                  {form.bankTransferExpense &&
+                    form.paymentMethod === PaymentMethod.BankTransfer && (
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-sm font-semibold text-[#222222]">
+                          Gasto por Transferencia bancaria:
+                        </span>
+                        <span className="text-sm text-[#222222]">
                           {formatCurrency(
-                            item.priceUSDAtPurchase,
+                            form.bankTransferExpense,
                             "en-US",
                             "USD"
                           )}
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min={1}
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleQuantityChange(
-                                item.productVariant.id,
-                                Number(e.target.value)
-                              )
-                            }
-                            disabled={
-                              itemOperationLoading === item.productVariant.id
-                            }
-                            className="input input-xs w-16 text-[#222222] bg-white border-[#bdbdbd] rounded-md shadow-sm focus:ring-2 focus:ring-[#388e3c] focus:outline-none disabled:opacity-50"
-                          />
-                        </td>
-                        <td>{formatCurrency(item.subTotal, "en-US", "USD")}</td>
-                        <td>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-xs text-white bg-[#2196f3] border-[#2196f3] rounded-md shadow-md hover:bg-[#1976d2] hover:border-[#1976d2] transition-colors duration-200 ease-in-out"
-                              onClick={() => handleEditPrices(item)}
-                              disabled={itemOperationLoading === item.productVariant.id}
-                              title="Editar precios"
-                            >
-                              <Edit3 size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-xs text-white bg-[#d32f2f] border-[#d32f2f] rounded-md shadow-md hover:bg-[#b71c1c] hover:border-[#b71c1c] transition-colors duration-200 ease-in-out"
-                              onClick={() =>
-                                handleRemoveVariant(item.productVariant.id)
-                              }
-                              disabled={
-                                itemOperationLoading === item.productVariant.id
-                              }
-                              title="Eliminar producto"
-                            >
-                              {itemOperationLoading === item.productVariant.id ? (
-                                <span className="loading loading-spinner loading-xs"></span>
-                              ) : (
-                                <Trash size={16} />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          {/* Subtotal y Total */}
-          <div className="mt-4">
-            <div className="flex justify-between items-ce<Image src={item.productVariant.images[0]} alt={item.productVariant.product.productModel} />nter">
-              <span className="text-sm font-semibold text-[#222222]">
-                Subtotal:
-              </span>
-              <span className="text-sm text-[#222222]">
-                {formatCurrency(form.subTotal, "en-US", "USD")}
-              </span>
-            </div>
-            {form.bankTransferExpense && form.paymentMethod === PaymentMethod.BankTransfer && (
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-sm font-semibold text-[#222222]">
-                  Gasto por Transferencia bancaria:
-                </span>
-                <span className="text-sm text-[#222222]">
-                  {formatCurrency(form.bankTransferExpense, "en-US", "USD")}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-sm font-semibold text-[#222222]">
-                Total:
-              </span>
-              <span className="text-sm text-[#222222]">
-                {formatCurrency(form.totalAmount, "en-US", "USD")}
-              </span>
-            </div>
-          </div>
-          <button
-            type="submit"
-            disabled={isSubmitting || !hasChanges()}
-            className="mt-4 btn rounded-none shadow-none border-none h-12 px-6 w-full transition-colors duration-300 ease-in-out text-white bg-[#388e3c] border-[#388e3c] disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isSubmitting
-              ? "Guardando..."
-              : hasChanges()
-              ? "Guardar cambios"
-              : "Sin cambios"}
-          </button>
-        </form>
+                        </span>
+                      </div>
+                    )}
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm font-semibold text-[#222222]">
+                      Total:
+                    </span>
+                    <span className="text-sm text-[#222222]">
+                      {formatCurrency(form.totalAmount, "en-US", "USD")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm font-semibold text-[#222222]">
+                      Cost of Goods:
+                    </span>
+                    <span className="text-sm text-[#222222]">
+                      {formatCurrency(
+                        form.subTotal - form.totalGainUSD,
+                        "en-US",
+                        "USD"
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm font-semibold text-[#222222]">
+                      Contribución Marginal:
+                    </span>
+                    <span className="text-sm text-[#222222]">
+                      {formatCurrency(form.totalGainUSD, "en-US", "USD")}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !hasChanges()}
+                  className="mt-4 btn rounded-none shadow-none border-none h-12 px-6 w-full transition-colors duration-300 ease-in-out text-white bg-[#388e3c] border-[#388e3c] disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting
+                    ? "Guardando..."
+                    : hasChanges()
+                    ? "Guardar cambios"
+                    : "Sin cambios"}
+                </button>
+              </form>
             </div>
           </div>
 
           {/* Customer History Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-4">
-              <h3 className="text-lg font-semibold text-[#111111] mb-4">Customer History</h3>
-              
+          <div className="lg:col-span-1 space-y-4">
+            {/* Remito Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-[#111111]">Remito</h4>
+                <span className="text-xs text-gray-500">
+                  #{form.orderNumber}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                Descargar remito de la orden
+              </p>
+              <button
+                type="button"
+                onClick={() => downloadOrderPDF(form.id)}
+                className="btn w-full rounded-none shadow-none border-none h-10 px-4 text-white bg-[#222222] hover:bg-[#111111]"
+                aria-label="Descargar remito"
+              >
+                Descargar remito
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-[#111111] mb-4">
+                Customer History
+              </h3>
+
               {/* Customer Info */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
@@ -1268,7 +1499,9 @@ const EditOrderPage = () => {
                     </span>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{form.user.displayName}</p>
+                    <p className="font-medium text-gray-900 text-sm">
+                      {form.user.displayName}
+                    </p>
                     <p className="text-xs text-gray-500">{form.user.email}</p>
                   </div>
                 </div>
@@ -1294,23 +1527,99 @@ const EditOrderPage = () => {
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Orders</p>
-                    <p className="text-xl font-bold text-gray-900">{currentUserMetrics.totalOrders}</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {currentUserMetrics.totalOrders}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(currentUserMetrics.totalRevenue, "en-US", "USD")}
+                      {formatCurrency(
+                        currentUserMetrics.totalRevenue,
+                        "en-US",
+                        "USD"
+                      )}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 mb-1">Average Order Value</p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Average Order Value
+                    </p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(currentUserMetrics.averageOrderValue, "en-US", "USD")}
+                      {formatCurrency(
+                        currentUserMetrics.averageOrderValue,
+                        "en-US",
+                        "USD"
+                      )}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="text-sm text-gray-500">No analytics data available</div>
+                <div className="text-sm text-gray-500">
+                  No analytics data available
+                </div>
+              )}
+            </div>
+
+            {/* Refund Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-[#111111] mb-4">
+                Reembolsos
+              </h3>
+
+              {/* Current Refund Display */}
+              {form.refund ? (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">
+                      Reembolso Aplicado
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-sm text-green-700">
+                    <p>
+                      <span className="font-medium">Tipo:</span> {form.refund.type === 'fixed' ? 'Monto Fijo' : 'Porcentaje'}
+                    </p>
+                    <p>
+                      <span className="font-medium">Valor:</span> {form.refund.type === 'fixed' 
+                        ? formatCurrency(form.refund.amount, "en-US", "USD")
+                        : `${form.refund.amount}%`
+                      }
+                    </p>
+                    <p>
+                      <span className="font-medium">Monto aplicado:</span> {formatCurrency(form.refund.appliedAmount, "en-US", "USD")}
+                    </p>
+                    {form.refund.reason && (
+                      <p>
+                        <span className="font-medium">Razón:</span> {form.refund.reason}
+                      </p>
+                    )}
+                    <p>
+                      <span className="font-medium">Procesado:</span> {new Date(form.refund.processedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-3">
+                    No se ha aplicado ningún reembolso a esta orden.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenRefundForm}
+                    className="btn btn-sm w-full rounded-md shadow-sm border border-blue-500 bg-blue-500 text-white hover:bg-blue-600 hover:border-blue-600 transition-colors"
+                    disabled={refundLoading}
+                  >
+                    {refundLoading ? "Verificando..." : "Aplicar Reembolso"}
+                  </button>
+                </div>
+              )}
+
+              {/* Refund Error Display */}
+              {refundError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{refundError}</p>
+                </div>
               )}
             </div>
           </div>
@@ -1326,6 +1635,181 @@ const EditOrderPage = () => {
           onSave={handleSavePrices}
           loading={editPricesModal.loading}
         />
+      )}
+
+      {/* Modal de Reembolso */}
+      {refundForm.isOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box w-full max-w-md rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] p-0 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#FFFFFF] border-b border-[#e1e1e1] flex justify-between items-center h-12 z-30">
+              <h3 className="font-bold text-lg text-[#111111] m-0 px-4">
+                Aplicar Reembolso
+              </h3>
+              <button
+                className="btn btn-sm bg-transparent text-[#333333] hover:text-[#111111] shadow-none h-full w-12 border-l border-[#e1e1e1] border-t-0 border-r-0 border-b-0 m-0"
+                onClick={handleCloseRefundForm}
+                disabled={refundLoading}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Refund Eligibility Check */}
+              {refundEligibilityLoading ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#2271B1] mx-auto"></div>
+                  <p className="text-sm text-[#333333] mt-2">Verificando elegibilidad...</p>
+                </div>
+              ) : refundEligibility ? (
+                refundEligibility.canRefund ? (
+                  <div className="space-y-4">
+                    {/* Order Info */}
+                    <div className="mb-4">
+                      <p className="text-sm text-[#333333]">
+                        <strong className="text-[#111111]">Orden:</strong> #{form.orderNumber}
+                      </p>
+                      <p className="text-sm text-[#333333]">
+                        <strong className="text-[#111111]">Cliente:</strong> {form.user.displayName}
+                      </p>
+                    </div>
+
+                    {/* Refund Type */}
+                    <div>
+                      <label className="block text-sm font-medium text-[#111111] mb-2">
+                        Tipo de Reembolso
+                      </label>
+                      <div className="flex space-x-4">
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="refundType"
+                            value="fixed"
+                            checked={refundForm.type === 'fixed'}
+                            onChange={(e) => handleRefundFormChange('type', e.target.value)}
+                            className="mr-2 text-[#2271B1]"
+                          />
+                          <span className="text-sm text-[#333333]">Monto Fijo (USD)</span>
+                        </label>
+                        <label className="flex items-center">
+                          <input
+                            type="radio"
+                            name="refundType"
+                            value="percentage"
+                            checked={refundForm.type === 'percentage'}
+                            onChange={(e) => handleRefundFormChange('type', e.target.value)}
+                            className="mr-2 text-[#2271B1]"
+                          />
+                          <span className="text-sm text-[#333333]">Porcentaje (%)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Amount */}
+                    <div>
+                      <label className="block text-sm font-medium text-[#111111] mb-1">
+                        {refundForm.type === 'fixed' ? 'Monto (USD)' : 'Porcentaje (%)'}
+                      </label>
+                      <input
+                        type="number"
+                        step={refundForm.type === 'fixed' ? '0.01' : '1'}
+                        min="0"
+                        max={refundForm.type === 'percentage' ? '100' : undefined}
+                        value={refundForm.amount}
+                        onChange={(e) => handleRefundFormChange('amount', e.target.value)}
+                        placeholder={refundForm.type === 'fixed' ? '0.00' : '0'}
+                        className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]"
+                        required
+                      />
+                      {refundEligibility.maxRefundAmount && refundForm.type === 'fixed' && (
+                        <p className="text-xs text-[#333333] mt-1">
+                          Máximo reembolsable: {formatCurrency(refundEligibility.maxRefundAmount, "en-US", "USD")}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Reason */}
+                    <div>
+                      <label className="block text-sm font-medium text-[#111111] mb-1">
+                        Razón (Opcional)
+                      </label>
+                      <textarea
+                        value={refundForm.reason}
+                        onChange={(e) => handleRefundFormChange('reason', e.target.value)}
+                        placeholder="Descripción del motivo del reembolso..."
+                        className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]"
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Preview */}
+                    {refundForm.amount && (
+                      <div className="bg-[#f8f9fa] p-3 rounded-none border border-[#e1e1e1]">
+                        <h4 className="text-sm font-medium text-[#111111] mb-2">Vista Previa:</h4>
+                        <div className="text-xs text-[#333333] space-y-1">
+                          <div>Tipo: {refundForm.type === 'fixed' ? 'Monto Fijo' : 'Porcentaje'}</div>
+                          <div>Valor: {refundForm.type === 'fixed' 
+                            ? `$${parseFloat(refundForm.amount || '0').toFixed(2)}` 
+                            : `${refundForm.amount}%`}
+                          </div>
+                          {refundForm.type === 'percentage' && (
+                            <div>Monto estimado: ${((parseFloat(refundForm.amount || '0') / 100) * (form.subTotal || 0)).toFixed(2)}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex space-x-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={handleCloseRefundForm}
+                        className="flex-1 px-4 py-2 text-[#333333] bg-[#f1f1f1] rounded-none hover:bg-[#e1e1e1] transition-colors border border-[#e1e1e1]"
+                        disabled={refundLoading}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApplyRefund}
+                        disabled={refundLoading || !refundForm.amount}
+                        className="flex-1 px-4 py-2 text-white bg-[#222222] rounded-none hover:bg-[#111111] transition-colors disabled:opacity-50 shadow-none"
+                      >
+                        {refundLoading ? "Aplicando..." : "Aplicar Reembolso"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <span className="text-red-600 font-bold">!</span>
+                    </div>
+                    <p className="text-red-600 font-medium mb-2">No se puede aplicar reembolso</p>
+                    <p className="text-sm text-[#333333]">{refundEligibility.reason}</p>
+                    <button
+                      type="button"
+                      onClick={handleCloseRefundForm}
+                      className="mt-4 px-4 py-2 text-white bg-[#222222] rounded-none hover:bg-[#111111] transition-colors shadow-none"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                )
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#333333]">Error al verificar elegibilidad</p>
+                  <button
+                    type="button"
+                    onClick={handleCloseRefundForm}
+                    className="mt-4 px-4 py-2 text-white bg-[#222222] rounded-none hover:bg-[#111111] transition-colors shadow-none"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </dialog>
       )}
     </div>
   );

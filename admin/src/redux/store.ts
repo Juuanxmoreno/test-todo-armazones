@@ -6,6 +6,7 @@ import orderReducer from "./slices/orderSlice";
 import inventoryReducer from "./slices/inventorySlice";
 import expenseReducer from "./slices/expenseSlice";
 import analyticsReducer from "./slices/analyticsSlice";
+import dollarReducer from "./slices/dollarSlice";
 
 const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ const store = configureStore({
     inventory: inventoryReducer,
     expenses: expenseReducer,
     analytics: analyticsReducer,
+    dollar: dollarReducer, // Added dollar slice
   },
 });
 

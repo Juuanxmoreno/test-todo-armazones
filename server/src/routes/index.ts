@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'; // Assuming user routes are under auth
+import dollarRoutes from './dollar.routes';
 import productRoutes from './product.routes';
 import inventoryRoutes from './inventory.routes';
 import categoryRoutes from './category.routes';
@@ -15,6 +16,7 @@ const router: Router = Router();
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
+router.use('/dollar', dollarRoutes);
 router.use('/products', productRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/categories', categoryRoutes);

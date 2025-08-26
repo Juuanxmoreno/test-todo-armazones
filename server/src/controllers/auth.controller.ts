@@ -27,6 +27,32 @@ export class AuthController {
     }
   };
 
+  public createUserByAdmin = async (req: Request, res: Response<ApiResponse>, next: NextFunction): Promise<void> => {
+    try {
+      const { email, password, displayName, firstName, lastName, dni, cuit, phone } = req.body;
+
+      const user = await this.authService.createUserByAdmin({
+        email,
+        password,
+        displayName,
+        firstName,
+        lastName,
+        dni,
+        cuit,
+        phone,
+      });
+
+      res.status(201).json({
+        status: 'success',
+        message: 'Usuario creado exitosamente por administrador',
+        data: { user },
+      });
+    } catch (error) {
+      logger.error('Error en AuthController.createUserByAdmin', { error });
+      next(error);
+    }
+  };
+
   public login = async (req: Request, res: Response<ApiResponse>, next: NextFunction): Promise<void> => {
     try {
       const loginData: LoginRequestDto = req.body;

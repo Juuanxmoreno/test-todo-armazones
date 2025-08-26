@@ -6,6 +6,7 @@ export interface IUser {
   firstName?: string;
   lastName?: string;
   dni?: string;
+  cuit?: string;
   phone?: string;
   password: string;
   role: UserRole;

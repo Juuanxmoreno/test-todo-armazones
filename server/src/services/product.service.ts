@@ -643,9 +643,10 @@ export class ProductService {
       case PriceUpdateType.FIXED_AMOUNT:
         return Math.max(0, currentPrice + value); // No permitir precios negativos
 
-      case PriceUpdateType.PERCENTAGE:
+      case PriceUpdateType.PERCENTAGE: {
         const multiplier = 1 + value / 100;
         return Math.max(0, currentPrice * multiplier);
+      }
 
       case PriceUpdateType.SET_PRICE:
         return value;

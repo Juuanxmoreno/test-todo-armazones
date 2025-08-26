@@ -11,6 +11,8 @@ import {
   bulkUpdateOrderStatusBodySchema,
   checkStockAvailabilityParamsSchema,
   updateOrderStatusWithConflictsBodySchema,
+  applyRefundParamsSchema,
+  applyRefundBodySchema,
 } from 'schemas/order.schema';
 import { updateItemPricesBodySchema } from 'schemas/updateItemPrices.schema';
 
@@ -79,6 +81,33 @@ router.patch(
     body: updateOrderStatusWithConflictsBodySchema,
   }),
   orderController.updateOrderStatusWithConflictHandling,
+);
+
+// Rutas para reembolsos (solo admin)
+router.post(
+  '/:orderId/refund',
+  checkAdmin,
+  validateRequest({
+    params: applyRefundParamsSchema,
+    body: applyRefundBodySchema,
+  }),
+  orderController.applyRefund,
+);
+
+router.get(
+  '/:orderId/refund',
+  validateRequest({
+    params: applyRefundParamsSchema,
+  }),
+  orderController.getRefundDetails,
+);
+
+router.get(
+  '/:orderId/refund/eligibility',
+  validateRequest({
+    params: applyRefundParamsSchema,
+  }),
+  orderController.canApplyRefund,
 );
 
 export default router;

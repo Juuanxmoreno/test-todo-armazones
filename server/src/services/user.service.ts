@@ -70,7 +70,15 @@ export class UserService {
     const userId = getSessionUserId(session);
 
     // Only allow these fields to be updated
-    const allowedFields: Array<keyof UpdateUserRequestDto> = ['email', 'displayName', 'firstName', 'lastName'];
+    const allowedFields: Array<keyof UpdateUserRequestDto> = [
+      'email',
+      'displayName',
+      'firstName',
+      'lastName',
+      'dni',
+      'cuit',
+      'phone',
+    ];
     const update: Partial<Record<keyof UpdateUserRequestDto, string>> = {};
     for (const key of allowedFields) {
       const value = (updateData as UpdateUserRequestDto)[key];
@@ -109,6 +117,9 @@ export class UserService {
         updatedAt: updatedUser.updatedAt,
         firstName: updatedUser.firstName,
         lastName: updatedUser.lastName,
+        dni: updatedUser.dni,
+        cuit: updatedUser.cuit,
+        phone: updatedUser.phone,
       };
     } catch (_err: unknown) {
       // If it's an AppError, rethrow it

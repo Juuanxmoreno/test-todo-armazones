@@ -13,6 +13,9 @@ import {
   updateOrderStatusWithConflictHandling,
   clearStockAvailability,
   clearOrderById as clearOrderByIdAction,
+  applyRefund,
+  checkRefundEligibility,
+  clearRefundState,
   CreateOrderAdminPayload,
 } from "@/redux/slices/orderSlice";
 import type { 
@@ -22,7 +25,10 @@ import type {
   BulkUpdateOrderStatusPayload, 
   BulkUpdateOrderStatusResponse,
   StockAvailabilityResponse,
-  OrderStatusUpdateResult
+  OrderStatusUpdateResult,
+  ApplyRefundPayload,
+  ApplyRefundResponse,
+  RefundEligibilityResponse
 } from "@/interfaces/order";
 import { OrderStatus } from "@/enums/order.enum";
 
@@ -40,6 +46,10 @@ const useOrders = () => {
   const stockAvailability = useAppSelector((state) => state.orders.stockAvailability);
   const stockCheckLoading = useAppSelector((state) => state.orders.stockCheckLoading);
   const stockCheckError = useAppSelector((state) => state.orders.stockCheckError);
+  const refundLoading = useAppSelector((state) => state.orders.refundLoading);
+  const refundError = useAppSelector((state) => state.orders.refundError);
+  const refundEligibility = useAppSelector((state) => state.orders.refundEligibility);
+  const refundEligibilityLoading = useAppSelector((state) => state.orders.refundEligibilityLoading);
   const getOrderById = useCallback(
     (orderId: string) => {
       dispatch(fetchOrderById(orderId));
@@ -143,6 +153,46 @@ const useOrders = () => {
   dispatch(clearOrderByIdAction());
   }, [dispatch]);
 
+  const applyOrderRefund = useCallback(
+    (
+      payload: ApplyRefundPayload,
+      onSuccess?: (response: ApplyRefundResponse) => void,
+      onError?: (err: unknown) => void
+    ) => {
+      dispatch(applyRefund(payload))
+        .unwrap()
+        .then((response) => {
+          if (onSuccess) onSuccess(response);
+        })
+        .catch((err) => {
+          if (onError) onError(err);
+        });
+    },
+    [dispatch]
+  );
+
+  const checkOrderRefundEligibility = useCallback(
+    (
+      orderId: string,
+      onSuccess?: (response: RefundEligibilityResponse) => void,
+      onError?: (err: unknown) => void
+    ) => {
+      dispatch(checkRefundEligibility(orderId))
+        .unwrap()
+        .then((response) => {
+          if (onSuccess) onSuccess(response);
+        })
+        .catch((err) => {
+          if (onError) onError(err);
+        });
+    },
+    [dispatch]
+  );
+
+  const clearRefundInfo = useCallback(() => {
+    dispatch(clearRefundState());
+  }, [dispatch]);
+
   return {
     orders,
     orderById,
@@ -154,6 +204,10 @@ const useOrders = () => {
     stockAvailability,
     stockCheckLoading,
     stockCheckError,
+    refundLoading,
+    refundError,
+    refundEligibility,
+    refundEligibilityLoading,
     getOrders,
     getOrderById,
     updateOrderData,
@@ -161,8 +215,11 @@ const useOrders = () => {
     bulkUpdateOrderStatusData,
     checkStockAvailability,
     updateOrderStatusWithConflicts,
-  clearStockInfo,
-  clearOrderById,
+    clearStockInfo,
+    clearOrderById,
+    applyOrderRefund,
+    checkOrderRefundEligibility,
+    clearRefundInfo,
     setFilter,
     clearOrders,
     createOrderAsAdmin: useCallback(

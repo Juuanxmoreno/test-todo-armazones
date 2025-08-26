@@ -68,6 +68,39 @@ export const fetchUserByEmail = createAsyncThunk<
   }
 });
 
+// Payload para crear usuario por admin
+export interface CreateUserByAdminPayload {
+  email: string;
+  password: string;
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  dni?: string;
+  cuit?: string;
+  phone?: string;
+}
+
+// Crear usuario por admin
+export const createUserByAdmin = createAsyncThunk<
+  IUser,
+  CreateUserByAdminPayload,
+  { rejectValue: string }
+>("users/createUserByAdmin", async (payload, { rejectWithValue }) => {
+  try {
+    const res = await axiosInstance.post<
+      ApiResponse<{ user: IUser }>
+    >("/auth/create-user-admin", payload);
+    if (res.data.status !== "success" || !res.data.data?.user) {
+      return rejectWithValue(
+        res.data.message || "No se pudo crear el usuario"
+      );
+    }
+    return res.data.data.user;
+  } catch (err) {
+    return rejectWithValue(getErrorMessage(err));
+  }
+});
+
 const userSlice = createSlice({
   name: "users",
   initialState,
@@ -128,6 +161,20 @@ const userSlice = createSlice({
         state.loadingUserByEmail = false;
         state.errorUserByEmail = action.payload || "No se encontró el usuario";
         state.userByEmail = null;
+      })
+      // createUserByAdmin
+      .addCase(createUserByAdmin.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createUserByAdmin.fulfilled, (state) => {
+        state.loading = false;
+        state.error = null;
+        // No modificamos la lista local; la UI recargará desde el backend
+      })
+      .addCase(createUserByAdmin.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || "No se pudo crear el usuario";
       });
   },
 });

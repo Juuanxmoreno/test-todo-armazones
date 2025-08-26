@@ -10,6 +10,9 @@ const ProfilePage = () => {
     displayName: "",
     firstName: "",
     lastName: "",
+    dni: "",
+    cuit: "",
+    phone: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
@@ -27,6 +30,9 @@ const ProfilePage = () => {
         displayName: user.displayName || "",
         firstName: user.firstName || "",
         lastName: user.lastName || "",
+        dni: user.dni || "",
+        cuit: user.cuit || "",
+        phone: user.phone || "",
       });
     }
   }, [user]);
@@ -105,6 +111,36 @@ const ProfilePage = () => {
             type="text"
             name="lastName"
             value={form.lastName}
+            onChange={handleChange}
+            className="w-full border border-[#e1e1e1] rounded-none px-3 py-2 bg-[#FFFFFF] text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#222222]"
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-medium text-[#222222]">DNI</label>
+          <input
+            type="text"
+            name="dni"
+            value={form.dni}
+            onChange={handleChange}
+            className="w-full border border-[#e1e1e1] rounded-none px-3 py-2 bg-[#FFFFFF] text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#222222]"
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-medium text-[#222222]">CUIT</label>
+          <input
+            type="text"
+            name="cuit"
+            value={form.cuit}
+            onChange={handleChange}
+            className="w-full border border-[#e1e1e1] rounded-none px-3 py-2 bg-[#FFFFFF] text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#222222]"
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-medium text-[#222222]">Teléfono</label>
+          <input
+            type="text"
+            name="phone"
+            value={form.phone}
             onChange={handleChange}
             className="w-full border border-[#e1e1e1] rounded-none px-3 py-2 bg-[#FFFFFF] text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#222222]"
           />

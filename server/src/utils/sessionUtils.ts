@@ -11,6 +11,7 @@ interface SessionUserData {
   firstName?: string;
   lastName?: string;
   dni?: string;
+  cuit?: string;
   phone?: string;
   role: UserRole;
   status: UserStatus;
@@ -24,6 +25,7 @@ export function setSessionUser(session: session.Session & Partial<session.Sessio
     ...(user.firstName && { firstName: user.firstName }),
     ...(user.lastName && { lastName: user.lastName }),
     ...(user.dni && { dni: user.dni }),
+    ...(user.cuit && { cuit: user.cuit }),
     ...(user.phone && { phone: user.phone }),
     role: user.role,
     status: user.status,

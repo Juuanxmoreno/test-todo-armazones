@@ -10,6 +10,15 @@ export interface IOrderItem {
   gainUSD: number;
 }
 
+export interface IRefund {
+  type: 'fixed' | 'percentage';
+  amount: number; // Monto fijo en USD o porcentaje (0-100)
+  appliedAmount: number; // Monto real aplicado en USD
+  reason?: string;
+  processedAt: Date;
+  processedBy?: Types.ObjectId;
+}
+
 export interface IOrder {
   orderNumber: number;
   user: Types.ObjectId;
@@ -23,4 +32,5 @@ export interface IOrder {
   totalGainUSD: number;
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;
+  refund?: IRefund;
 }

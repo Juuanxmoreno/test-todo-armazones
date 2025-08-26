@@ -18,6 +18,10 @@ router.get('/stock/by-product', checkAdmin, analyticsController.getStockAnalytic
 router.get('/stock/low-stock-alerts', checkAdmin, analyticsController.getLowStockAlerts);
 router.get('/stock/by-category', checkAdmin, analyticsController.getStockAnalyticsByCategory);
 router.get('/stock/by-subcategory', checkAdmin, analyticsController.getStockAnalyticsBySubcategory);
-router.get('/stock/by-category-with-subcategories', checkAdmin, analyticsController.getStockAnalyticsByCategoryWithSubcategories);
+router.get(
+  '/stock/by-category-with-subcategories',
+  checkAdmin,
+  analyticsController.getStockAnalyticsByCategoryWithSubcategories,
+);
 
 export default router;

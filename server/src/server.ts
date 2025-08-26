@@ -4,13 +4,6 @@ import env from '@config/env';
 import logger from '@config/logger';
 import { AppError } from '@utils/AppError';
 import 'queues/order-queue.processor';
-// import https from 'https';
-// import fs from 'fs';
-// import path from 'path';
-// import { fileURLToPath } from 'url';
-
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
 
 const startServer = async (): Promise<void> => {
   try {
@@ -20,14 +13,6 @@ const startServer = async (): Promise<void> => {
     }
 
     await connectDB();
-
-    // const key = fs.readFileSync(path.join(__dirname, '../certs/api.juancruzmoreno.dev-key.pem'));
-    // const cert = fs.readFileSync(path.join(__dirname, '../certs/api.juancruzmoreno.dev-crt.pem'));
-    // const ca = fs.readFileSync(path.join(__dirname, '../certs/api.juancruzmoreno.dev-chain.pem'));
-
-    // https.createServer({ key, cert, ca }, app).listen(env.PORT, '0.0.0.0', () => {
-    //   logger.info(`✅ HTTPS Server is running on port ${env.PORT}`);
-    // });
 
     app.listen(env.PORT, '0.0.0.0', () => {
       logger.info(`✅ HTTP Server is running on port ${env.PORT}`);

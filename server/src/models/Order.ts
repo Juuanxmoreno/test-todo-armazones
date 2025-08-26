@@ -35,6 +35,46 @@ const orderItemSchema = new Schema<IOrderItem>(
   },
 );
 
+// Esquema para reembolsos
+const refundSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ['fixed', 'percentage'],
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    appliedAmount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    reason: {
+      type: String,
+      required: false,
+      maxlength: 500,
+    },
+    processedAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    processedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
+    },
+  },
+  {
+    _id: false,
+    timestamps: false,
+  },
+);
+
 const orderSchema = new Schema<IOrderDocument>(
   {
     orderNumber: {
@@ -78,6 +118,10 @@ const orderSchema = new Schema<IOrderDocument>(
       type: Boolean,
       required: true,
       default: false,
+    },
+    refund: {
+      type: refundSchema,
+      required: false,
     },
   },
   {

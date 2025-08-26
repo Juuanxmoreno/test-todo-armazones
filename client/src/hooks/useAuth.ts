@@ -28,7 +28,7 @@ export const useAuth = () => {
     logout: () => dispatch(logout()),
     fetchCurrentUser: fetchCurrentUserCallback,
     resetAuthError: () => dispatch(resetAuthError()),
-    updateUser: (data: { email: string; displayName: string; firstName?: string; lastName?: string }) =>
+    updateUser: (data: { email: string; displayName: string; firstName?: string; lastName?: string; dni?: string; cuit?: string; phone?: string }) =>
       dispatch(updateUser(data)),
   };
 };

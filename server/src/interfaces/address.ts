@@ -9,6 +9,7 @@ export interface IAddress {
   email: string;
   phoneNumber: string;
   dni: string;
+  cuit?: string;
   streetAddress?: string; // Opcional cuando es pickup point
   city: string;
   state: string;

@@ -1,14 +1,26 @@
 "use client";
-import { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useState } from "react";
 import { useUsers } from "@/hooks/useUsers";
 import { debounce } from "@/utils/debounce";
 import LoadingSpinner from "@/components/atoms/LoadingSpinner";
+import { createUserByAdmin } from "@/redux/slices/userSlice";
 
 const SKELETON_COUNT = 10;
 
 const CustomersPage = () => {
-  const { users, nextCursor, loading, error, loadUsers } = useUsers();
+  const { users, nextCursor, loading, error, loadUsers, createUser } = useUsers();
   const observer = useRef<IntersectionObserver | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [dni, setDni] = useState("");
+  const [cuit, setCuit] = useState("");
+  const [phone, setPhone] = useState("");
 
   // Debounced loadUsers for infinite scroll
   const debouncedFetch = useRef(
@@ -36,6 +48,53 @@ const CustomersPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const resetForm = () => {
+    setEmail("");
+    setPassword("");
+    setDisplayName("");
+    setFirstName("");
+    setLastName("");
+    setDni("");
+    setCuit("");
+    setPhone("");
+    setFormError(null);
+  };
+
+  const handleOpenCreate = () => {
+    resetForm();
+    setIsCreateOpen(true);
+  };
+
+  const handleCloseCreate = () => {
+    setIsCreateOpen(false);
+  };
+
+  const handleSubmitCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    if (!email || !password) {
+      setFormError("Email y contraseña son requeridos");
+      return;
+    }
+    setSubmitting(true);
+    const action = await createUser({
+      email,
+      password,
+      displayName: displayName || undefined,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      dni: dni || undefined,
+      cuit: cuit || undefined,
+      phone: phone || undefined,
+    });
+    setSubmitting(false);
+    if (createUserByAdmin.fulfilled.match(action)) {
+      handleCloseCreate();
+    } else {
+      setFormError(action.payload as string || "No se pudo crear el usuario");
+    }
+  };
+
   // Skeleton row for loading
   const SkeletonRow = () => (
     <tr className="animate-pulse">
@@ -59,6 +118,11 @@ const CustomersPage = () => {
       <h1 className="text-[#111111] font-bold text-2xl mb-4">
         Lista de clientes
       </h1>
+      <div className="mb-4 flex justify-end">
+        <button onClick={handleOpenCreate} className="btn bg-[#222222] text-white px-4 py-2 rounded-none shadow-none">
+          Crear cliente
+        </button>
+      </div>
       {/* Tabla DaisyUI para desktop */}
       <div className="hidden md:block">
         <table className="table">
@@ -192,6 +256,86 @@ const CustomersPage = () => {
           No hay más clientes.
         </div>
       )}
+
+      {/* Modal crear cliente (estilo consistente con EditItemPricesModal) */}
+      <dialog className={`modal ${isCreateOpen ? "modal-open" : ""}`}>
+        <div className="modal-box w-full max-w-md rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] p-0 max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-[#FFFFFF] border-b border-[#e1e1e1] flex justify-between items-center h-12 z-30">
+            <h3 className="font-bold text-lg text-[#111111] m-0 px-4">Crear cliente</h3>
+            <button
+              className="btn btn-sm bg-transparent text-[#333333] hover:text-[#111111] shadow-none h-full w-12 border-l border-[#e1e1e1] border-t-0 border-r-0 border-b-0 m-0"
+              onClick={handleCloseCreate}
+              disabled={submitting}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="p-4">
+            <form onSubmit={handleSubmitCreate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#111111] mb-1">Email</label>
+                <input type="email" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#111111] mb-1">Contraseña</label>
+                <input type="password" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#111111] mb-1">Nombre a mostrar (opcional)</label>
+                <input type="text" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#111111] mb-1">Nombre (opcional)</label>
+                  <input type="text" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#111111] mb-1">Apellido (opcional)</label>
+                  <input type="text" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#111111] mb-1">DNI (opcional)</label>
+                  <input type="text" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={dni} onChange={(e) => setDni(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#111111] mb-1">CUIT (opcional)</label>
+                  <input type="text" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={cuit} onChange={(e) => setCuit(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#111111] mb-1">Teléfono (opcional)</label>
+                <input type="text" className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              {formError && (
+                <div className="text-error text-sm">{formError}</div>
+              )}
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseCreate}
+                  className="flex-1 px-4 py-2 text-[#333333] bg-[#f1f1f1] rounded-none hover:bg-[#e1e1e1] transition-colors border border-[#e1e1e1]"
+                  disabled={submitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 text-white bg-[#222222] rounded-none hover:bg-[#111111] transition-colors disabled:opacity-50 shadow-none"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creando..." : "Crear"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop" onClick={handleCloseCreate}>
+          <button>close</button>
+        </form>
+      </dialog>
     </div>
   );
 };

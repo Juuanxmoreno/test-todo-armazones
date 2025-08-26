@@ -8,6 +8,9 @@ export interface Order {
     id: string;
     email: string;
     displayName: string;
+    dni: string;
+    cuit?: string;
+    phone: string;
     role: UserRole.User | UserRole.Admin;
     status: UserStatus;
   };
@@ -55,6 +58,7 @@ export interface ShippingAddress {
   email: string;
   phoneNumber: string;
   dni: string;
+  cuit?: string;
   streetAddress?: string; // Ahora opcional
   city: string;
   state: string;
@@ -75,6 +79,7 @@ export interface CreateOrderPayload {
     email: string;
     phoneNumber: string;
     dni: string;
+    cuit?: string;
     streetAddress?: string; // Ahora opcional
     city: string;
     state: string;

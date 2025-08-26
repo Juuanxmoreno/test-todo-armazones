@@ -5,9 +5,10 @@ export const addressSchema = z
   .object({
     firstName: z.string().min(1, "Nombre requerido"),
     lastName: z.string().min(1, "Apellido requerido"),
-    email: z.string().email("Email inválido"),
+    email: z.email("Email inválido"),
     phoneNumber: z.string().min(1, "Teléfono requerido"),
     dni: z.string().min(1, "DNI requerido"),
+    cuit: z.string().optional(),
     streetAddress: z.string().optional(), // Ahora opcional
     city: z.string().min(1, "Ciudad requerida"),
     state: z.string().min(1, "Provincia requerida"),
@@ -16,10 +17,10 @@ export const addressSchema = z
     shippingCompany: z.string().optional(),
     declaredShippingAmount: z.string().optional(),
     deliveryWindow: z.string().optional(),
-    deliveryType: z.nativeEnum(DeliveryType).optional(), // Nuevo campo
+    deliveryType: z.enum(DeliveryType).optional(), // Nuevo campo
     pickupPointAddress: z.string().optional(), // Nuevo campo
     // Agregamos shippingMethod solo para validación contextual
-    shippingMethod: z.nativeEnum(ShippingMethod),
+    shippingMethod: z.enum(ShippingMethod),
   })
   .superRefine((data, ctx) => {
     // Validación para shippingCompany cuando es ParcelCompany

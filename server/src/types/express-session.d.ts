@@ -10,6 +10,7 @@ declare module 'express-session' {
       firstName?: string;
       lastName?: string;
       dni?: string;
+      cuit?: string;
       phone?: string;
       role: UserRole;
       status: UserStatus;

@@ -12,8 +12,5 @@ export const resetPasswordBodySchema = z.object({
     .refine((val) => /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/.test(val), {
       message: 'El token debe tener formato JWT válido',
     }),
-  password: z
-    .string()
-    .min(8, 'La contraseña debe tener al menos 8 caracteres')
-    .max(100, 'La contraseña no puede exceder los 100 caracteres'),
+  password: z.string(),
 });

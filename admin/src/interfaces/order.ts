@@ -26,6 +26,7 @@ export interface Order {
   totalGainUSD: number;
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;
+  refund?: RefundDetails | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -168,4 +169,42 @@ export interface UpdateItemCompletePayload {
   priceUSDAtPurchase?: number;
   subTotal?: number;
   gainUSD?: number;
+}
+
+// Interfaces para reembolsos
+export interface RefundDetails {
+  type: 'fixed' | 'percentage';
+  amount: number;
+  appliedAmount: number;
+  reason?: string;
+  processedAt: string;
+  processedBy?: string;
+}
+
+export interface ApplyRefundPayload {
+  orderId: string;
+  type: 'fixed' | 'percentage';
+  amount: number;
+  reason?: string;
+}
+
+export interface RefundEligibilityResponse {
+  canRefund: boolean;
+  reason?: string;
+  maxRefundAmount?: number;
+}
+
+export interface ApplyRefundResponse {
+  success: boolean;
+  order?: Order;
+  message: string;
+  refundDetails?: {
+    originalSubTotal: number;
+    refundAmount: number;
+    newSubTotal: number;
+    originalBankTransferExpense?: number;
+    newBankTransferExpense?: number;
+    originalTotalAmount: number;
+    newTotalAmount: number;
+  };
 }

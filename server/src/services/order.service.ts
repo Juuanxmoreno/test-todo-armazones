@@ -14,13 +14,16 @@ import {
   BulkUpdateOrderStatusResponseDto,
   StockConflictItem,
   OrderStatusUpdateResultDto,
+  RefundDto,
+  RefundResponse,
+  ApplyRefundResultDto,
 } from '@dto/order.dto';
 import Address, { IAddressDocument } from '@models/Address';
 import Cart from '@models/Cart';
 import ProductVariant, { IProductVariantPopulated } from '@models/ProductVariant';
 import { IProductDocument } from '@models/Product';
 import { OrderStatus, PaymentMethod } from '@enums/order.enum';
-import { IOrder } from '@interfaces/order';
+import { IOrder, IRefund } from '@interfaces/order';
 import Order, { IOrderDocument, IOrderItemDocument } from '@models/Order';
 import { withTransaction } from '@helpers/withTransaction';
 import { AppError } from '@utils/AppError';
@@ -280,6 +283,7 @@ export class OrderService {
       firstName: u.firstName || '',
       lastName: u.lastName || '',
       dni: u.dni || '',
+      ...(u.cuit && { cuit: u.cuit }),
       phone: u.phone || '',
       role: u.role,
       status: u.status,
@@ -298,6 +302,7 @@ export class OrderService {
       email: a.email,
       phoneNumber: a.phoneNumber,
       dni: a.dni,
+      ...(a.cuit && { cuit: a.cuit }),
       streetAddress: a.streetAddress,
       city: a.city,
       state: a.state,
@@ -342,6 +347,20 @@ export class OrderService {
     };
   }
 
+  // Helper: Mapea el refund a RefundResponse
+  private mapRefundToResponse(refund: IRefund | null | undefined): RefundResponse | null {
+    if (!refund) return null;
+
+    return {
+      type: refund.type,
+      amount: refund.amount,
+      appliedAmount: refund.appliedAmount,
+      ...(refund.reason && { reason: refund.reason }),
+      processedAt: refund.processedAt instanceof Date ? refund.processedAt.toISOString() : String(refund.processedAt),
+      ...(refund.processedBy && { processedBy: refund.processedBy.toString() }),
+    };
+  }
+
   // Helper: Mapea la orden populada a OrderResponseDto
   private mapOrderToResponseDto(order: IOrderDocument): OrderResponseDto {
     return {
@@ -367,6 +386,7 @@ export class OrderService {
       totalGainUSD: order.totalGainUSD,
       orderStatus: order.orderStatus,
       allowViewInvoice: order.allowViewInvoice,
+      refund: this.mapRefundToResponse(order.refund),
       createdAt: order.createdAt instanceof Date ? order.createdAt.toISOString() : String(order.createdAt),
       updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : String(order.updatedAt),
     };
@@ -396,6 +416,7 @@ export class OrderService {
       totalAmount: order.totalAmount,
       orderStatus: order.orderStatus,
       allowViewInvoice: order.allowViewInvoice,
+      refund: this.mapRefundToResponse(order.refund),
       createdAt: order.createdAt instanceof Date ? order.createdAt.toISOString() : String(order.createdAt),
       updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : String(order.updatedAt),
     };
@@ -444,13 +465,13 @@ export class OrderService {
       // Crear dirección de envío
       const shippingAddressId = await this.createShippingAddress(orderData.shippingAddress, userId, session);
 
-      // Verificar y actualizar el usuario si falta dni o phone
+      // Verificar y actualizar el usuario si falta dni, cuit o phone
       const user = await User.findById(userId).session(session);
       if (!user) {
         throw new AppError('Usuario no encontrado', 404, 'fail');
       }
 
-      const { dni, phoneNumber } = orderData.shippingAddress;
+      const { dni, cuit, phoneNumber } = orderData.shippingAddress;
       const updateData: Partial<IUser> = {};
 
       if (!user.firstName && orderData.shippingAddress.firstName) {
@@ -463,6 +484,10 @@ export class OrderService {
 
       if (!user.dni && dni) {
         updateData.dni = dni;
+      }
+
+      if (!user.cuit && cuit) {
+        updateData.cuit = cuit;
       }
 
       if (!user.phone && phoneNumber) {
@@ -1945,5 +1970,204 @@ export class OrderService {
     // Generar el PDF
     const buffer = await generateOrderPDF(order);
     return { buffer, orderNumber: order.orderNumber };
+  }
+
+  /**
+   * Calcula el monto de reembolso basado en el tipo y cantidad especificada
+   * @param subTotal - Subtotal original de la orden
+   * @param refundData - Datos del reembolso (tipo y cantidad)
+   * @returns Monto aplicado del reembolso en USD
+   */
+  private calculateRefundAmount(subTotal: number, refundData: RefundDto): number {
+    if (refundData.type === 'fixed') {
+      // Para montos fijos, validar que no exceda el subtotal
+      return Math.min(refundData.amount, subTotal);
+    } else {
+      // Para porcentajes, calcular basado en el subtotal
+      const percentage = Math.min(Math.max(refundData.amount, 0), 100); // Entre 0 y 100
+      return Math.round(((subTotal * percentage) / 100) * 100) / 100; // Redondear a 2 decimales
+    }
+  }
+
+  /**
+   * Aplica un reembolso a una orden completada
+   * Recalcula automáticamente el subtotal, gastos bancarios y total
+   * @param orderId - ID de la orden
+   * @param refundData - Datos del reembolso
+   * @param processedBy - Usuario que procesa el reembolso
+   * @returns Resultado detallado del reembolso aplicado
+   */
+  public async applyRefund(
+    orderId: Types.ObjectId,
+    refundData: RefundDto,
+    processedBy?: Types.ObjectId,
+  ): Promise<ApplyRefundResultDto> {
+    try {
+      const result = await withTransaction(async (session) => {
+        // Obtener la orden
+        const order = await Order.findById(orderId).session(session);
+        if (!order) {
+          throw new AppError('Orden no encontrada', 404, 'fail');
+        }
+
+        // Validar que no tenga un reembolso ya aplicado
+        if (order.refund) {
+          throw new AppError('Esta orden ya tiene un reembolso aplicado', 400, 'fail');
+        }
+
+        // Guardar valores originales para el resultado
+        const originalSubTotal = order.subTotal;
+        const originalBankTransferExpense = order.bankTransferExpense;
+        const originalTotalAmount = order.totalAmount;
+
+        // Calcular el monto del reembolso
+        const refundAmount = this.calculateRefundAmount(order.subTotal, refundData);
+
+        // Validar que el reembolso sea válido
+        if (refundAmount <= 0) {
+          throw new AppError('El monto del reembolso debe ser mayor a 0', 400, 'fail');
+        }
+
+        if (refundAmount > order.subTotal) {
+          throw new AppError('El monto del reembolso no puede ser mayor al subtotal de la orden', 400, 'fail');
+        }
+
+        // Aplicar el reembolso al subtotal
+        const newSubTotal = Math.max(order.subTotal - refundAmount, 0);
+
+        // Recalcular gastos bancarios basado en el nuevo subtotal
+        const { bankTransferExpense: newBankTransferExpense, totalAmount: newTotalAmount } = this.calculateTotals(
+          newSubTotal,
+          order.paymentMethod,
+        );
+
+        // Actualizar la orden con los nuevos valores
+        order.subTotal = newSubTotal;
+        if (newBankTransferExpense !== undefined) {
+          order.bankTransferExpense = newBankTransferExpense;
+        } else {
+          // Usar set para remover el campo cuando es undefined
+          order.set('bankTransferExpense', undefined);
+        }
+        order.totalAmount = newTotalAmount;
+
+        // Agregar información del reembolso
+        order.refund = {
+          type: refundData.type,
+          amount: refundData.amount,
+          appliedAmount: refundAmount,
+          ...(refundData.reason && { reason: refundData.reason }),
+          processedAt: new Date(),
+          ...(processedBy && { processedBy }),
+        };
+
+        // Guardar la orden
+        await order.save({ session });
+
+        logger.info('Reembolso aplicado exitosamente', {
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus, // Estado actual (no modificado)
+          refundType: refundData.type,
+          refundAmount: refundData.amount,
+          appliedAmount: refundAmount,
+          originalSubTotal,
+          newSubTotal,
+          originalTotalAmount,
+          newTotalAmount,
+          processedBy: processedBy?.toString(),
+        });
+
+        // Obtener la orden populada para la respuesta
+        const populatedOrder = await this.getPopulatedOrderResponse(order._id, session);
+
+        return {
+          success: true,
+          order: populatedOrder,
+          message: `Reembolso de $${refundAmount.toFixed(2)} USD aplicado exitosamente`,
+          refundDetails: {
+            originalSubTotal,
+            refundAmount,
+            newSubTotal,
+            ...(originalBankTransferExpense !== undefined && { originalBankTransferExpense }),
+            ...(newBankTransferExpense !== undefined && { newBankTransferExpense }),
+            originalTotalAmount,
+            newTotalAmount,
+          },
+        };
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Error al aplicar reembolso', {
+        orderId: orderId.toString(),
+        refundData,
+        error: error instanceof Error ? error.message : String(error),
+        processedBy: processedBy?.toString(),
+      });
+
+      if (error instanceof AppError) {
+        return {
+          success: false,
+          message: error.message,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Error interno del servidor al aplicar el reembolso',
+      };
+    }
+  }
+
+  /**
+   * Obtiene los detalles de reembolso de una orden
+   * @param orderId - ID de la orden
+   * @returns Información del reembolso si existe
+   */
+  public async getRefundDetails(orderId: Types.ObjectId): Promise<RefundResponse | null> {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new AppError('Orden no encontrada', 404, 'fail');
+    }
+
+    return this.mapRefundToResponse(order.refund);
+  }
+
+  /**
+   * Valida si una orden puede recibir un reembolso
+   * @param orderId - ID de la orden
+   * @returns Información sobre la elegibilidad para reembolso
+   */
+  public async canApplyRefund(orderId: Types.ObjectId): Promise<{
+    canRefund: boolean;
+    reason?: string;
+    maxRefundAmount?: number;
+  }> {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new AppError('Orden no encontrada', 404, 'fail');
+    }
+
+    // Verificar si ya tiene reembolso
+    if (order.refund) {
+      return {
+        canRefund: false,
+        reason: 'Esta orden ya tiene un reembolso aplicado',
+      };
+    }
+
+    // Verificar que tenga un subtotal positivo
+    if (order.subTotal <= 0) {
+      return {
+        canRefund: false,
+        reason: 'La orden no tiene un monto válido para reembolsar',
+      };
+    }
+
+    return {
+      canRefund: true,
+      maxRefundAmount: order.subTotal,
+    };
   }
 }

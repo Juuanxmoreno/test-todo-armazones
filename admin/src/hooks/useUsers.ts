@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { fetchUsers, resetUsers, fetchUserByEmail } from "@/redux/slices/userSlice";
+import { fetchUsers, resetUsers, fetchUserByEmail, createUserByAdmin, CreateUserByAdminPayload } from "@/redux/slices/userSlice";
 
 export const useUsers = () => {
   const dispatch = useAppDispatch();
@@ -31,6 +31,19 @@ export const useUsers = () => {
     dispatch(resetUsers());
   }, [dispatch]);
 
+  const createUser = useCallback(
+    async (payload: CreateUserByAdminPayload) => {
+      const action = await dispatch(createUserByAdmin(payload));
+      if (createUserByAdmin.fulfilled.match(action)) {
+        // Reinicia la lista y recarga primer página para consistencia
+        dispatch(resetUsers());
+        dispatch(fetchUsers({ limit: 10 }));
+      }
+      return action;
+    },
+    [dispatch]
+  );
+
   return {
     users,
     nextCursor,
@@ -42,5 +55,6 @@ export const useUsers = () => {
     loadingUserByEmail,
     errorUserByEmail,
     findUserByEmail,
+    createUser,
   };
 };

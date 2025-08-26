@@ -3,6 +3,9 @@ export interface UpdateUserRequestDto {
   email?: string;
   firstName?: string;
   lastName?: string;
+  dni?: string;
+  cuit?: string;
+  phone?: string;
 }
 import { UserRole, UserStatus } from '@enums/user.enum';
 

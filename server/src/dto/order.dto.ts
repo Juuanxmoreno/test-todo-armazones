@@ -91,6 +91,7 @@ export interface UserResponse {
   firstName?: string;
   lastName?: string;
   dni?: string;
+  cuit?: string;
   phone?: string;
   role: string;
   status: string;
@@ -103,6 +104,7 @@ export interface AddressResponse {
   email: string;
   phoneNumber: string;
   dni: string;
+  cuit?: string;
   streetAddress?: string | undefined; // Ahora opcional
   city: string;
   state: string;
@@ -129,6 +131,7 @@ export interface OrderResponseDto {
   totalGainUSD: number;
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;
+  refund?: RefundResponse | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -169,4 +172,35 @@ export interface OrderStatusUpdateResultDto {
   order?: OrderResponseDto;
   stockConflicts?: StockConflictItem[];
   message: string;
+}
+
+// DTOs para manejo de reembolsos
+export interface RefundDto {
+  type: 'fixed' | 'percentage';
+  amount: number; // Monto fijo en USD o porcentaje (0-100)
+  reason?: string;
+}
+
+export interface RefundResponse {
+  type: 'fixed' | 'percentage';
+  amount: number;
+  appliedAmount: number;
+  reason?: string;
+  processedAt: string;
+  processedBy?: string;
+}
+
+export interface ApplyRefundResultDto {
+  success: boolean;
+  order?: OrderResponseDto;
+  message: string;
+  refundDetails?: {
+    originalSubTotal: number;
+    refundAmount: number;
+    newSubTotal: number;
+    originalBankTransferExpense?: number;
+    newBankTransferExpense?: number;
+    originalTotalAmount: number;
+    newTotalAmount: number;
+  };
 }

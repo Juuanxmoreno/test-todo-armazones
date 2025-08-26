@@ -8,7 +8,6 @@ const baseAddressSchema = z.object({
   lastName: z.string().min(1, 'El apellido es obligatorio').max(50, 'El apellido no puede exceder los 50 caracteres'),
   companyName: z.string().max(50, 'El nombre de la empresa no puede exceder los 50 caracteres').optional(),
   email: z
-    .string()
     .email('El correo electrónico no es válido')
     .max(100, 'El correo electrónico no puede exceder los 100 caracteres'),
   phoneNumber: z
@@ -16,6 +15,7 @@ const baseAddressSchema = z.object({
     .min(1, 'El número de teléfono es obligatorio')
     .max(20, 'El número de teléfono no puede exceder los 20 caracteres'),
   dni: z.string().min(1, 'El DNI es obligatorio').max(20, 'El DNI no puede exceder los 20 caracteres'),
+  cuit: z.string().optional(),
   city: z.string().min(1, 'La ciudad es obligatoria').max(50, 'La ciudad no puede exceder los 50 caracteres'),
   state: z.string().min(1, 'El estado es obligatorio').max(50, 'El estado no puede exceder los 50 caracteres'),
   postalCode: z
@@ -28,7 +28,7 @@ const baseAddressSchema = z.object({
     .max(20, 'El monto declarado de envío no puede exceder los 20 caracteres')
     .optional(),
   deliveryWindow: z.string().max(50, 'La ventana de entrega no puede exceder los 50 caracteres').optional(),
-  deliveryType: z.nativeEnum(DeliveryType).optional(),
+  deliveryType: z.enum(DeliveryType).optional(),
   streetAddress: z.string().max(100, 'La dirección no puede exceder los 100 caracteres').optional(),
   pickupPointAddress: z
     .string()
@@ -66,9 +66,9 @@ const addressSchema = baseAddressSchema
   );
 
 export const createOrderBodySchema = z.object({
-  shippingMethod: z.nativeEnum(ShippingMethod),
+  shippingMethod: z.enum(ShippingMethod),
   shippingAddress: addressSchema,
-  paymentMethod: z.nativeEnum(PaymentMethod),
+  paymentMethod: z.enum(PaymentMethod),
 });
 
 export const createOrderAdminBodySchema = z.object({
@@ -85,9 +85,9 @@ export const createOrderAdminBodySchema = z.object({
       }),
     )
     .min(1, 'Debe especificar al menos un item'),
-  shippingMethod: z.nativeEnum(ShippingMethod),
+  shippingMethod: z.enum(ShippingMethod),
   shippingAddress: addressSchema,
-  paymentMethod: z.nativeEnum(PaymentMethod),
+  paymentMethod: z.enum(PaymentMethod),
   createdAt: z
     .string()
     .refine(
@@ -111,7 +111,7 @@ export const getAllOrdersParamsSchema = z.object({
     })
     .optional(),
   limit: z.number().min(1, 'El límite debe ser al menos 1').optional(),
-  status: z.nativeEnum(OrderStatus).optional(),
+  status: z.enum(OrderStatus).optional(),
 });
 
 export const updateOrderParamsSchema = z.object({
@@ -195,8 +195,8 @@ export const updateOrderBodySchema = z.object({
       },
     )
     .optional(),
-  shippingMethod: z.nativeEnum(ShippingMethod).optional(),
-  paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+  shippingMethod: z.enum(ShippingMethod).optional(),
+  paymentMethod: z.enum(PaymentMethod).optional(),
   shippingAddress: z
     .object({
       firstName: z.string().min(1, 'El nombre es obligatorio').max(50, 'El nombre no puede exceder los 50 caracteres'),
@@ -267,3 +267,36 @@ export const updateOrderStatusWithConflictsBodySchema = z.object({
     message: 'El estado debe ser uno de los valores válidos',
   }),
 });
+
+// Schemas para reembolsos
+export const applyRefundParamsSchema = z.object({
+  orderId: z.string().refine((val) => Types.ObjectId.isValid(val), {
+    message: 'El orderId debe ser un ObjectId válido',
+  }),
+});
+
+export const applyRefundBodySchema = z
+  .object({
+    type: z.enum(['fixed', 'percentage'], {
+      message: 'El tipo de reembolso debe ser "fixed" o "percentage"',
+    }),
+    amount: z.number().min(0, 'El monto debe ser mayor o igual a 0'),
+    reason: z.string().max(500, 'La razón no puede exceder los 500 caracteres').optional(),
+  })
+  .refine(
+    (data) => {
+      // Para reembolsos de porcentaje, validar que esté entre 0 y 100
+      if (data.type === 'percentage') {
+        return data.amount >= 0 && data.amount <= 100;
+      }
+      // Para montos fijos, validar que no sea excesivo
+      if (data.type === 'fixed') {
+        return data.amount <= 100000;
+      }
+      return true;
+    },
+    {
+      message:
+        'Para reembolsos de porcentaje, el valor debe estar entre 0 y 100. Para montos fijos, no puede exceder $100,000 USD',
+    },
+  );

@@ -33,7 +33,8 @@ export const AnalyticsSchema = z
       return true;
     },
     {
-      message: 'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
+      message:
+        'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
     },
   )
   .transform((data) => ({
@@ -83,7 +84,8 @@ export const AnalyticsSchemaOptionalPeriod = z
       return true;
     },
     {
-      message: 'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
+      message:
+        'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
     },
   )
   .transform((data) => ({

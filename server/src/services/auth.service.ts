@@ -22,6 +22,81 @@ import env from '@config/env';
 import { renderResetPasswordEmail } from '@utils/renderResetPasswordEmail';
 
 export class AuthService {
+  /**
+   * Crea un usuario sin iniciar sesión (uso exclusivo para administradores)
+   */
+  public async createUserByAdmin(data: {
+    email: string;
+    password: string;
+    displayName?: string;
+    firstName?: string;
+    lastName?: string;
+    dni?: string;
+    cuit?: string;
+    phone?: string;
+  }): Promise<RegisterResponseDto> {
+    try {
+      const normalizedEmail = data.email.toLowerCase();
+
+      const existingUser = await User.findOne({ email: normalizedEmail }).lean();
+      if (existingUser) {
+        logger.warn('Intento de creación de usuario por admin con correo ya registrado', {
+          email: normalizedEmail,
+        });
+        throw new AppError('El correo ya está registrado', 409, 'fail', true, {
+          code: 'USER_EXISTS',
+          fields: { email: ['El correo ya está en uso'] },
+        });
+      }
+
+      const displayName = data.displayName ? data.displayName : capitalizeFirstLetter(normalizedEmail.split('@')[0]);
+
+      const hashedPassword = await argon2.hash(data.password, { type: argon2.argon2id });
+
+      const newUserDoc = await User.create({
+        email: normalizedEmail,
+        displayName,
+        ...(data.firstName && { firstName: data.firstName }),
+        ...(data.lastName && { lastName: data.lastName }),
+        ...(data.dni && { dni: data.dni }),
+        ...(data.cuit && { cuit: data.cuit }),
+        ...(data.phone && { phone: data.phone }),
+        password: hashedPassword,
+        // role y status usan los defaults del modelo
+      });
+
+      const newUser = await User.findById(newUserDoc._id).select('-password').lean();
+      if (!newUser) {
+        logger.error('Usuario no encontrado después de creación por admin', { userId: newUserDoc._id });
+        throw new AppError('Error interno del servidor', 500, 'error', true);
+      }
+
+      logger.info('Usuario creado exitosamente por admin', {
+        userId: newUser._id,
+        email: newUser.email,
+        displayName: newUser.displayName,
+      });
+
+      return {
+        id: newUser._id.toString(),
+        email: newUser.email,
+        displayName: newUser.displayName,
+        ...(newUser.firstName && { firstName: newUser.firstName }),
+        ...(newUser.lastName && { lastName: newUser.lastName }),
+        ...(newUser.dni && { dni: newUser.dni }),
+        ...(newUser.cuit && { cuit: newUser.cuit }),
+        ...(newUser.phone && { phone: newUser.phone }),
+        role: newUser.role,
+        status: newUser.status,
+        createdAt: newUser.createdAt,
+        updatedAt: newUser.updatedAt,
+      };
+    } catch (err) {
+      logger.error('Error en AuthService.createUserByAdmin', { error: err, input: { email: data.email } });
+      throw err;
+    }
+  }
+
   public async register(
     userData: RegisterRequestDto,
     session: session.Session & Partial<session.SessionData>,
@@ -188,6 +263,7 @@ export class AuthService {
         ...(user.firstName && { firstName: user.firstName }),
         ...(user.lastName && { lastName: user.lastName }),
         ...(user.dni && { dni: user.dni }),
+        ...(user.cuit && { cuit: user.cuit }),
         ...(user.phone && { phone: user.phone }),
         role: user.role,
         status: user.status,
@@ -200,6 +276,7 @@ export class AuthService {
         ...(user.firstName && { firstName: user.firstName }),
         ...(user.lastName && { lastName: user.lastName }),
         ...(user.dni && { dni: user.dni }),
+        ...(user.cuit && { cuit: user.cuit }),
         ...(user.phone && { phone: user.phone }),
         role: user.role,
         status: user.status,
@@ -212,6 +289,7 @@ export class AuthService {
         ...(user.firstName && { firstName: user.firstName }),
         ...(user.lastName && { lastName: user.lastName }),
         ...(user.dni && { dni: user.dni }),
+        ...(user.cuit && { cuit: user.cuit }),
         ...(user.phone && { phone: user.phone }),
         role: user.role,
         status: user.status,
@@ -291,6 +369,7 @@ export class AuthService {
         ...(user.firstName && { firstName: user.firstName }),
         ...(user.lastName && { lastName: user.lastName }),
         ...(user.dni && { dni: user.dni }),
+        ...(user.cuit && { cuit: user.cuit }),
         ...(user.phone && { phone: user.phone }),
         role: user.role,
         status: user.status,
@@ -303,6 +382,7 @@ export class AuthService {
         ...(user.firstName && { firstName: user.firstName }),
         ...(user.lastName && { lastName: user.lastName }),
         ...(user.dni && { dni: user.dni }),
+        ...(user.cuit && { cuit: user.cuit }),
         ...(user.phone && { phone: user.phone }),
         role: user.role,
         status: user.status,
@@ -315,6 +395,7 @@ export class AuthService {
         ...(user.firstName && { firstName: user.firstName }),
         ...(user.lastName && { lastName: user.lastName }),
         ...(user.dni && { dni: user.dni }),
+        ...(user.cuit && { cuit: user.cuit }),
         ...(user.phone && { phone: user.phone }),
         role: user.role,
         status: user.status,
@@ -451,6 +532,7 @@ export class AuthService {
           ...(userData.firstName && { firstName: userData.firstName }),
           ...(userData.lastName && { lastName: userData.lastName }),
           ...(userData.dni && { dni: userData.dni }),
+          ...(userData.cuit && { cuit: userData.cuit }),
           ...(userData.phone && { phone: userData.phone }),
           role: userData.role,
           status: userData.status,
@@ -462,6 +544,7 @@ export class AuthService {
           ...(userData.firstName && { firstName: userData.firstName }),
           ...(userData.lastName && { lastName: userData.lastName }),
           ...(userData.dni && { dni: userData.dni }),
+          ...(userData.cuit && { cuit: userData.cuit }),
           ...(userData.phone && { phone: userData.phone }),
           role: userData.role,
           status: userData.status,

@@ -19,6 +19,7 @@ const userSchema = new Schema<IUserDocument>(
     firstName: { type: String },
     lastName: { type: String },
     dni: { type: String },
+    cuit: { type: String },
     phone: { type: String },
     password: { type: String, required: true },
     role: {

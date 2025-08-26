@@ -6,6 +6,7 @@ import type { UpdateProductPayload } from "@/interfaces/product";
 import { normalizeColorName } from "@/utils/normalizeColorName";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 const initialVariant = {
   id: "",
@@ -79,6 +80,11 @@ export default function EditProductPage({
       : [{ ...initialVariant }]
   );
 
+  // Control de colapsado por variante (default: colapsadas)
+  const [expanded, setExpanded] = useState<boolean[]>(
+    () => (product ? product.variants.map(() => false) : [false])
+  );
+
   const [primaryImageFile, setPrimaryImageFile] = useState<File | null>(null);
   const [variantImageFiles, setVariantImageFiles] = useState<
     Record<string, File[]>
@@ -114,10 +120,29 @@ export default function EditProductPage({
     field: string,
     value: string | number
   ) => {
+    // Si cambia el nombre del color, renombramos la key de imágenes asociada en variantImageFiles
+    const renameVariantImageKey = (oldName: string, newName: string) => {
+      const oldKey = normalizeColorName(oldName);
+      const newKey = normalizeColorName(newName);
+      if (oldKey === newKey) return;
+      setVariantImageFiles((prev) => {
+        const next = { ...prev } as Record<string, File[]>;
+        if (next[oldKey]) {
+          next[newKey] = next[newKey] ? [...next[newKey], ...next[oldKey]] : next[oldKey];
+          delete next[oldKey];
+        }
+        return next;
+      });
+    };
+
     setVariants((prev) => {
       const updated = [...prev];
       if (field.startsWith("color.")) {
         const colorField = field.split(".")[1] as "name" | "hex";
+        if (colorField === "name") {
+          const oldName = updated[idx].data.color.name;
+          renameVariantImageKey(oldName, value as string);
+        }
         updated[idx].data.color = {
           ...updated[idx].data.color,
           [colorField]: value as string,
@@ -157,7 +182,14 @@ export default function EditProductPage({
       },
     ]);
   const removeVariant = (idx: number) =>
-    setVariants((prev) => prev.filter((_, i) => i !== idx));
+    setVariants((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      setExpanded((prevExp) => prevExp.filter((_, i) => i !== idx));
+      return next;
+    });
+
+  const toggleExpand = (idx: number) =>
+    setExpanded((prev) => prev.map((v, i) => (i === idx ? !v : v)));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,62 +360,93 @@ export default function EditProductPage({
               key={variant.id || idx}
               className="border p-2 rounded mb-2 relative"
             >
-              <button
-                type="button"
-                className="btn btn-xs btn-error absolute right-2 top-2"
-                onClick={() => removeVariant(idx)}
-                disabled={variants.length === 1}
-                tabIndex={-1}
-              >
-                ✕
-              </button>
-              <div className="flex flex-col gap-1">
-                <label className="text-[#7A7A7A]">Color nombre</label>
-                <input
-                  className="input input-bordered mb-1 bg-[#FFFFFF] border border-[#e1e1e1]"
-                  placeholder="Color nombre"
-                  value={variant.data.color.name}
-                  onChange={(e) =>
-                    handleVariantChange(idx, "color.name", e.target.value)
-                  }
-                  required
-                />
-                <label className="text-[#7A7A7A]">Color HEX</label>
-                <input
-                  className="mb-1 bg-[#FFFFFF] border border-[#e1e1e1] rounded"
-                  type="color"
-                  value={variant.data.color.hex}
-                  onChange={(e) =>
-                    handleVariantChange(idx, "color.hex", e.target.value)
-                  }
-                  required
-                  style={{
-                    width: "48px",
-                    height: "32px",
-                    padding: 0,
-                    border: "1px solid #e1e1e1",
-                  }}
-                />
-                <label className="text-[#7A7A7A]">Precio USD</label>
-                <input
-                  className="input input-bordered mb-1 bg-[#FFFFFF] border border-[#e1e1e1]"
-                  type="number"
-                  placeholder="Precio USD"
-                  value={variant.data.priceUSD || ""}
-                  onChange={(e) =>
-                    handleVariantChange(idx, "priceUSD", e.target.value)
-                  }
-                  required
-                />
-                <label className="text-[#7A7A7A]">Imágenes de variante</label>
-                <input
-                  className="file-input file-input-bordered bg-[#FFFFFF] border border-[#e1e1e1]"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleVariantImagesChange(idx, e)}
-                />
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  className="text-left flex-1 flex items-center gap-2"
+                  onClick={() => toggleExpand(idx)}
+                >
+                  <span
+                    className="inline-block w-4 h-4 rounded border border-[#e1e1e1]"
+                    style={{ background: variant.data.color.hex }}
+                  ></span>
+                  <span className="font-medium text-[#222222]">
+                    {variant.data.color.name || "(Sin nombre)"}
+                  </span>
+                  <span className="text-xs text-[#7A7A7A]">
+                    Precio: {formatCurrency(variant.data.priceUSD || 0)}
+                  </span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost"
+                    onClick={() => toggleExpand(idx)}
+                    title={expanded[idx] ? "Colapsar" : "Expandir"}
+                  >
+                    {expanded[idx] ? "▾" : "▸"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-error"
+                    onClick={() => removeVariant(idx)}
+                    disabled={variants.length === 1}
+                    tabIndex={-1}
+                    title="Eliminar variante"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+              {expanded[idx] && (
+                <div className="flex flex-col gap-1 mt-2">
+                  <label className="text-[#7A7A7A]">Color nombre</label>
+                  <input
+                    className="input input-bordered mb-1 bg-[#FFFFFF] border border-[#e1e1e1]"
+                    placeholder="Color nombre"
+                    value={variant.data.color.name}
+                    onChange={(e) =>
+                      handleVariantChange(idx, "color.name", e.target.value)
+                    }
+                    required
+                  />
+                  <label className="text-[#7A7A7A]">Color HEX</label>
+                  <input
+                    className="mb-1 bg-[#FFFFFF] border border-[#e1e1e1] rounded"
+                    type="color"
+                    value={variant.data.color.hex}
+                    onChange={(e) =>
+                      handleVariantChange(idx, "color.hex", e.target.value)
+                    }
+                    required
+                    style={{
+                      width: "48px",
+                      height: "32px",
+                      padding: 0,
+                      border: "1px solid #e1e1e1",
+                    }}
+                  />
+                  <label className="text-[#7A7A7A]">Precio USD</label>
+                  <input
+                    className="input input-bordered mb-1 bg-[#FFFFFF] border border-[#e1e1e1]"
+                    type="number"
+                    placeholder="Precio USD"
+                    value={variant.data.priceUSD || ""}
+                    onChange={(e) =>
+                      handleVariantChange(idx, "priceUSD", e.target.value)
+                    }
+                    required
+                  />
+                  <label className="text-[#7A7A7A]">Imágenes de variante</label>
+                  <input
+                    className="file-input file-input-bordered bg-[#FFFFFF] border border-[#e1e1e1]"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleVariantImagesChange(idx, e)}
+                  />
+                </div>
+              )}
             </div>
           ))}
           <button
@@ -468,7 +531,7 @@ export default function EditProductPage({
                 ></span>
                 <span className="text-[#222222]">{v.data.color.name}</span>
                 <span className="text-[#7A7A7A]">
-                  (Precio: ${v.data.priceUSD || 0})
+                  (Precio: {formatCurrency(v.data.priceUSD || 0)})
                 </span>
               </li>
             ))}

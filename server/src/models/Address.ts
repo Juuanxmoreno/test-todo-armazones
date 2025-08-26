@@ -17,6 +17,7 @@ const addressSchema = new Schema<IAddressDocument>(
     email: { type: String, required: true },
     phoneNumber: { type: String, required: true },
     dni: { type: String, required: true },
+    cuit: { type: String, required: false },
     streetAddress: { type: String, required: false }, // Ahora opcional
     city: { type: String, required: true },
     state: { type: String, required: true },

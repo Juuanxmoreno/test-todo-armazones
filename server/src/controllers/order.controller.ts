@@ -5,6 +5,7 @@ import {
   UpdateOrderDto,
   UpdateOrderItemDto,
   BulkUpdateOrderStatusDto,
+  RefundDto,
 } from '@dto/order.dto';
 import { OrderService } from '@services/order.service';
 import { getSessionUserId } from '@utils/sessionUtils';
@@ -539,6 +540,142 @@ export class OrderController {
         const wrappedError = new AppError('Error inesperado al actualizar estado de orden', 500, 'error', false, {
           cause: error instanceof Error ? error.message : String(error),
         });
+        return next(wrappedError);
+      }
+
+      return next(error);
+    }
+  };
+
+  /**
+   * Aplica un reembolso a una orden completada
+   */
+  public applyRefund = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderId } = req.params;
+      const refundData: RefundDto = req.body;
+
+      if (!orderId) {
+        throw new AppError('Falta el parámetro orderId', 400, 'fail');
+      }
+
+      // Obtener el userId para trazabilidad
+      const processedBy = getSessionUserId(req.session);
+
+      const result = await this.orderService.applyRefund(new Types.ObjectId(orderId), refundData, processedBy);
+
+      logger.info('Aplicación de reembolso completada', {
+        orderId,
+        refundType: refundData.type,
+        refundAmount: refundData.amount,
+        success: result.success,
+        appliedAmount: result.refundDetails?.refundAmount,
+        processedBy: processedBy.toString(),
+      });
+
+      const response: ApiResponse<typeof result> = {
+        status: result.success ? 'success' : 'fail',
+        message: result.message,
+        data: result,
+      };
+
+      const statusCode = result.success ? 200 : 400;
+      res.status(statusCode).json(response);
+    } catch (error) {
+      logger.error('Error al aplicar reembolso', {
+        error,
+        orderId: req.params?.orderId,
+        body: req.body,
+      });
+
+      if (!(error instanceof AppError)) {
+        const wrappedError = new AppError('Error inesperado al aplicar reembolso', 500, 'error', false, {
+          cause: error instanceof Error ? error.message : String(error),
+        });
+        return next(wrappedError);
+      }
+
+      return next(error);
+    }
+  };
+
+  /**
+   * Obtiene los detalles de reembolso de una orden
+   */
+  public getRefundDetails = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderId } = req.params;
+
+      if (!orderId) {
+        throw new AppError('Falta el parámetro orderId', 400, 'fail');
+      }
+
+      const refundDetails = await this.orderService.getRefundDetails(new Types.ObjectId(orderId));
+
+      const response: ApiResponse<typeof refundDetails> = {
+        status: 'success',
+        message: refundDetails
+          ? 'Detalles de reembolso obtenidos exitosamente'
+          : 'Esta orden no tiene reembolso aplicado',
+        data: refundDetails,
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      logger.error('Error al obtener detalles de reembolso', {
+        error,
+        orderId: req.params?.orderId,
+      });
+
+      if (!(error instanceof AppError)) {
+        const wrappedError = new AppError('Error inesperado al obtener detalles de reembolso', 500, 'error', false, {
+          cause: error instanceof Error ? error.message : String(error),
+        });
+        return next(wrappedError);
+      }
+
+      return next(error);
+    }
+  };
+
+  /**
+   * Verifica si una orden puede recibir un reembolso
+   */
+  public canApplyRefund = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderId } = req.params;
+
+      if (!orderId) {
+        throw new AppError('Falta el parámetro orderId', 400, 'fail');
+      }
+
+      const eligibility = await this.orderService.canApplyRefund(new Types.ObjectId(orderId));
+
+      const response: ApiResponse<typeof eligibility> = {
+        status: 'success',
+        message: eligibility.canRefund
+          ? 'La orden es elegible para reembolso'
+          : 'La orden no es elegible para reembolso',
+        data: eligibility,
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      logger.error('Error al verificar elegibilidad de reembolso', {
+        error,
+        orderId: req.params?.orderId,
+      });
+
+      if (!(error instanceof AppError)) {
+        const wrappedError = new AppError(
+          'Error inesperado al verificar elegibilidad de reembolso',
+          500,
+          'error',
+          false,
+          {
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
         return next(wrappedError);
       }
 

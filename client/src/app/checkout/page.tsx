@@ -43,6 +43,9 @@ const CheckoutPage = () => {
       email: user?.email || "",
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
+      dni: user?.dni || "",
+      cuit: user?.cuit || "",
+      phoneNumber: user?.phone || "",
     },
     resolver: async (data, context, options) => {
       // Inyecta shippingMethod y deliveryType en los datos antes de validar
@@ -114,6 +117,18 @@ const CheckoutPage = () => {
 
   const onSubmit = async (data: AddressFormData) => {
     if (error) resetError();
+    
+    // Console.log para verificar qué datos se están enviando
+    console.log("=== DATOS DEL FORMULARIO ENVIADOS ===");
+    console.log("Datos completos del formulario:", data);
+    console.log("CUIT:", data.cuit);
+    console.log("DNI:", data.dni);
+    console.log("Email:", data.email);
+    console.log("Nombre:", data.firstName);
+    console.log("Apellido:", data.lastName);
+    console.log("Teléfono:", data.phoneNumber);
+    console.log("================================");
+    
     const payload: CreateOrderPayload = {
       shippingMethod,
       shippingAddress: {
@@ -122,6 +137,13 @@ const CheckoutPage = () => {
       },
       paymentMethod,
     };
+    
+    // Console.log del payload final que se envía al servidor
+    console.log("=== PAYLOAD FINAL ENVIADO AL SERVIDOR ===");
+    console.log("Payload completo:", payload);
+    console.log("Dirección de envío:", payload.shippingAddress);
+    console.log("================================");
+    
     const result = await placeOrder(payload);
       if (createOrder.fulfilled.match(result)) {
       // Reset cart and redirect to order received page with order id
@@ -268,6 +290,11 @@ const CheckoutPage = () => {
                           {method === PaymentMethod.BankTransfer && (
                             <span className="text-xs text-[#7A7A7A]">
                               (4% extra)
+                            </span>
+                          )}
+                          {method === PaymentMethod.CashOnDelivery && (
+                            <span className="text-xs text-[#7A7A7A]">
+                              (Solo para CABA y AMBA)
                             </span>
                           )}
                         </span>
@@ -451,6 +478,7 @@ const CheckoutPage = () => {
               ["email", "Email *", "Email"],
               ["phoneNumber", "Teléfono *"],
               ["dni", "DNI *", "DNI"],
+              ["cuit", "CUIT (opcional)", "CUIT"],
             ].map(([name, label, type = "text"]) => (
               <div
                 key={name}
