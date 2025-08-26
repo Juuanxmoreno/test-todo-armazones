@@ -264,7 +264,7 @@ const OrdersPage = () => {
                       <div className="flex items-center gap-2 mt-1">
                         <button
                           className="text-xs text-[#999999] hover:underline flex items-center gap-1 cursor-pointer"
-                          onClick={() => downloadOrderPDF(order.id)}
+                          onClick={() => downloadOrderPDF(order.id, order.shippingAddress.firstName, order.shippingAddress.lastName, order.orderNumber)}
                         >
                           <Image
                             src="/pdf.svg"

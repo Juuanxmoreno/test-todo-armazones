@@ -1477,7 +1477,7 @@ const EditOrderPage = () => {
               </p>
               <button
                 type="button"
-                onClick={() => downloadOrderPDF(form.id)}
+                onClick={() => downloadOrderPDF(form.id, form.shippingAddress.firstName, form.shippingAddress.lastName, form.orderNumber)}
                 className="btn w-full rounded-none shadow-none border-none h-10 px-4 text-white bg-[#222222] hover:bg-[#111111]"
                 aria-label="Descargar remito"
               >
