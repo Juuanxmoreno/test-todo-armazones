@@ -1,6 +1,9 @@
 export interface IDollar {
+  baseValue: number;
   value: number;
   addedValue: number;
   isPercentage: boolean;
-  latestAPIUpdate: Date;
+  source: 'bluelytics' | 'dolarapi';
+  apiUpdatedAt: Date;
+  updatedAt: Date;
 }

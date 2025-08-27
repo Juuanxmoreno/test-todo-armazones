@@ -37,6 +37,8 @@ const OrdersPage = () => {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [batchAction, setBatchAction] = useState<OrderStatus | "">("");
 
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
+
   const observer = useRef<IntersectionObserver | null>(null);
   const lastOrderRef = useRef<HTMLTableRowElement | null>(null);
   const isLoadingMore = loading && orders.length > 0;
@@ -117,6 +119,21 @@ const OrdersPage = () => {
           alert("❌ Error al actualizar las órdenes. Intenta de nuevo.");
         }
       );
+    }
+  };
+
+  const handleDownloadPDF = async (
+    orderId: string,
+    firstName: string,
+    lastName: string,
+    orderNumber: number
+  ) => {
+    setIsDownloading(orderId);
+    try {
+      await downloadOrderPDF(orderId, firstName, lastName, orderNumber);
+    } catch {
+    } finally {
+      setIsDownloading(null);
     }
   };
 
@@ -264,15 +281,29 @@ const OrdersPage = () => {
                       <div className="flex items-center gap-2 mt-1">
                         <button
                           className="text-xs text-[#999999] hover:underline flex items-center gap-1 cursor-pointer"
-                          onClick={() => downloadOrderPDF(order.id, order.shippingAddress.firstName, order.shippingAddress.lastName, order.orderNumber)}
+                          onClick={() =>
+                            handleDownloadPDF(
+                              order.id,
+                              order.shippingAddress.firstName,
+                              order.shippingAddress.lastName,
+                              order.orderNumber
+                            )
+                          }
+                          disabled={isDownloading === order.id}
                         >
-                          <Image
-                            src="/pdf.svg"
-                            alt="PDF Icon"
-                            width={16}
-                            height={16}
-                          />
-                          Ver factura
+                          {isDownloading === order.id ? (
+                            <span>Descargando...</span>
+                          ) : (
+                            <>
+                              <Image
+                                src="/pdf.svg"
+                                alt="PDF Icon"
+                                width={16}
+                                height={16}
+                              />
+                              Ver factura
+                            </>
+                          )}
                         </button>
                       </div>
                     )}
@@ -537,6 +568,10 @@ const OrdersPage = () => {
               <p className="mb-2 text-[#333333]">
                 <strong>Total:</strong>{" "}
                 {formatCurrency(previewOrder.totalAmount, "en-US", "USD")}
+              </p>
+              <p className="mb-2 text-[#333333]">
+                <strong>Total en ARS:</strong>{" "}
+                {formatCurrency(previewOrder.totalAmountARS, "es-AR", "ARS")}
               </p>
               <p className="mb-2 text-[#333333]">
                 <strong>Cost of Goods:</strong>{" "}

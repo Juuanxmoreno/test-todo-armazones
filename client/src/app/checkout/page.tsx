@@ -10,7 +10,11 @@ import { useOrders } from "@/hooks/useOrders";
 import { CartSyncError, createOrder } from "@/redux/slices/orderSlice";
 import type { CreateOrderPayload } from "@/interfaces/order";
 import { formatCurrency } from "@/utils/formatCurrency";
-import { PaymentMethod, ShippingMethod, DeliveryType } from "@/enums/order.enum";
+import {
+  PaymentMethod,
+  ShippingMethod,
+  DeliveryType,
+} from "@/enums/order.enum";
 import Link from "next/link";
 import Image from "next/image";
 import { Check, Package, ShoppingBag } from "lucide-react";
@@ -28,9 +32,7 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState(
     PaymentMethod.CashOnDelivery
   );
-  const [deliveryType, setDeliveryType] = useState(
-    DeliveryType.HomeDelivery
-  );
+  const [deliveryType, setDeliveryType] = useState(DeliveryType.HomeDelivery);
   const [syncError, setSyncError] = useState<CartSyncError | null>(null);
 
   const {
@@ -117,7 +119,7 @@ const CheckoutPage = () => {
 
   const onSubmit = async (data: AddressFormData) => {
     if (error) resetError();
-    
+
     // Console.log para verificar qué datos se están enviando
     console.log("=== DATOS DEL FORMULARIO ENVIADOS ===");
     console.log("Datos completos del formulario:", data);
@@ -128,7 +130,7 @@ const CheckoutPage = () => {
     console.log("Apellido:", data.lastName);
     console.log("Teléfono:", data.phoneNumber);
     console.log("================================");
-    
+
     const payload: CreateOrderPayload = {
       shippingMethod,
       shippingAddress: {
@@ -137,15 +139,15 @@ const CheckoutPage = () => {
       },
       paymentMethod,
     };
-    
+
     // Console.log del payload final que se envía al servidor
     console.log("=== PAYLOAD FINAL ENVIADO AL SERVIDOR ===");
     console.log("Payload completo:", payload);
     console.log("Dirección de envío:", payload.shippingAddress);
     console.log("================================");
-    
+
     const result = await placeOrder(payload);
-      if (createOrder.fulfilled.match(result)) {
+    if (createOrder.fulfilled.match(result)) {
       // Reset cart and redirect to order received page with order id
       resetCart();
       const createdOrderId = result.payload.id;
@@ -403,7 +405,10 @@ const CheckoutPage = () => {
                 className="block mb-1 text-sm"
                 style={{ color: "#7A7A7A" }}
               >
-                Franja horaria (opcional)
+                Franja horaria{" "}
+                {shippingMethod === ShippingMethod.Motorcycle
+                  ? "* (Mínimo 4 horas)"
+                  : "(opcional)"}
               </label>
               <input
                 id="deliveryWindow"
@@ -411,12 +416,14 @@ const CheckoutPage = () => {
                 {...register("deliveryWindow")}
                 className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
                 style={{ borderColor: "#e1e1e1" }}
+                placeholder="Ej: 11:00 - 16:00"
               />
-              {errors.deliveryWindow && (
-                <span className="text-red-500 text-sm">
-                  {errors.deliveryWindow.message}
-                </span>
-              )}
+              {shippingMethod === ShippingMethod.Motorcycle &&
+                errors.deliveryWindow && (
+                  <span className="text-red-500 text-sm">
+                    {errors.deliveryWindow.message}
+                  </span>
+                )}
             </div>
 
             {/* Campos condicionales según método de envío */}
@@ -480,10 +487,7 @@ const CheckoutPage = () => {
               ["dni", "DNI *", "DNI"],
               ["cuit", "CUIT (opcional)", "CUIT"],
             ].map(([name, label, type = "text"]) => (
-              <div
-                key={name}
-                className={name === "email" ? "col-span-2" : ""}
-              >
+              <div key={name} className={name === "email" ? "col-span-2" : ""}>
                 <label
                   htmlFor={name}
                   className="block mb-1 text-sm"
@@ -507,7 +511,7 @@ const CheckoutPage = () => {
             ))}
 
             {/* Campo de dirección (solo para entrega a domicilio) */}
-            {(shippingMethod !== ShippingMethod.ParcelCompany || 
+            {(shippingMethod !== ShippingMethod.ParcelCompany ||
               deliveryType === DeliveryType.HomeDelivery) && (
               <div className="col-span-2">
                 <label
@@ -533,31 +537,31 @@ const CheckoutPage = () => {
             )}
 
             {/* Campo de punto de retiro (solo para pickup point) */}
-            {shippingMethod === ShippingMethod.ParcelCompany && 
-             deliveryType === DeliveryType.PickupPoint && (
-              <div className="col-span-2">
-                <label
-                  htmlFor="pickupPointAddress"
-                  className="block mb-1 text-sm"
-                  style={{ color: "#7A7A7A" }}
-                >
-                  Dirección del punto de retiro *
-                </label>
-                <input
-                  id="pickupPointAddress"
-                  type="text"
-                  {...register("pickupPointAddress")}
-                  className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-                  style={{ borderColor: "#e1e1e1" }}
-                  placeholder="Ej: Sucursal Correo Argentino - Av. Corrientes 500"
-                />
-                {errors.pickupPointAddress && (
-                  <span className="text-red-500 text-sm">
-                    {errors.pickupPointAddress.message}
-                  </span>
-                )}
-              </div>
-            )}
+            {shippingMethod === ShippingMethod.ParcelCompany &&
+              deliveryType === DeliveryType.PickupPoint && (
+                <div className="col-span-2">
+                  <label
+                    htmlFor="pickupPointAddress"
+                    className="block mb-1 text-sm"
+                    style={{ color: "#7A7A7A" }}
+                  >
+                    Dirección del punto de retiro *
+                  </label>
+                  <input
+                    id="pickupPointAddress"
+                    type="text"
+                    {...register("pickupPointAddress")}
+                    className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                    style={{ borderColor: "#e1e1e1" }}
+                    placeholder="Ej: Sucursal Correo Argentino - Av. Corrientes 500"
+                  />
+                  {errors.pickupPointAddress && (
+                    <span className="text-red-500 text-sm">
+                      {errors.pickupPointAddress.message}
+                    </span>
+                  )}
+                </div>
+              )}
 
             {/* Campos de ubicación */}
             {[

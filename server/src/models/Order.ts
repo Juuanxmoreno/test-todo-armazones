@@ -108,6 +108,7 @@ const orderSchema = new Schema<IOrderDocument>(
     subTotal: { type: Number, required: true, default: 0 },
     bankTransferExpense: { type: Number, required: false },
     totalAmount: { type: Number, required: true, default: 0 },
+    totalAmountARS: { type: Number, required: false },
     totalGainUSD: { type: Number, required: true, default: 0 },
     orderStatus: {
       type: String,
@@ -132,6 +133,8 @@ const orderSchema = new Schema<IOrderDocument>(
 // Índices para optimizar consultas de analytics
 orderSchema.index({ createdAt: 1, orderStatus: 1 }); // Para filtrar por fecha y estado
 orderSchema.index({ createdAt: -1 }); // Para ordenamiento por fecha descendente
+// Índice para optimizar consultas basadas únicamente en orderStatus
+orderSchema.index({ orderStatus: 1 });
 
 const Order = model<IOrderDocument>('Order', orderSchema);
 

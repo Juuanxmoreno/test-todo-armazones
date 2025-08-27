@@ -5,9 +5,10 @@ import { useDollar } from "@/hooks/useDollar";
 import { formatCurrency } from "@/utils/formatCurrency";
 
 const ConfigurationPage = () => {
-  const { dollar, loading, error, updateConfig, forceUpdateDollarValue } = useDollar();
+  const { dollar, loading, error, updateConfig, forceUpdateDollarValue } =
+    useDollar();
 
-  const [addedValue, setAddedValue] = useState<number>(0);
+  const [addedValue, setAddedValue] = useState<number | "">(0);
   const [isPercentage, setIsPercentage] = useState<boolean>(false);
 
   useEffect(() => {
@@ -17,11 +18,17 @@ const ConfigurationPage = () => {
     }
   }, [dollar]);
 
-  const formattedUpdatedAt = useMemo(() => {
-    if (!dollar?.latestAPIUpdate) return "-";
-    const date = new Date(dollar.latestAPIUpdate);
+  const formattedApiUpdatedAt = useMemo(() => {
+    if (!dollar?.apiUpdatedAt) return "-";
+    const date = new Date(dollar.apiUpdatedAt);
     return isNaN(date.getTime()) ? "-" : date.toLocaleString();
-  }, [dollar?.latestAPIUpdate]);
+  }, [dollar?.apiUpdatedAt]);
+
+  const formattedBackendUpdatedAt = useMemo(() => {
+    if (!dollar?.updatedAt) return "-";
+    const date = new Date(dollar.updatedAt);
+    return isNaN(date.getTime()) ? "-" : date.toLocaleString();
+  }, [dollar?.updatedAt]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +53,37 @@ const ConfigurationPage = () => {
 
           <section className="grid gap-2 mb-6 text-[#222222]">
             <div>
-              <strong className="text-[#111111]">Valor actual:</strong> {formatCurrency(dollar?.value ?? 0, "es-AR", "ARS")}
+              <strong className="text-[#111111]">Valor base</strong>{" "}
+              <a
+                href={
+                  dollar?.source === "bluelytics"
+                    ? "https://bluelytics.com.ar"
+                    : "https://app.dolarapi.com"
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                (Fuente{" "}
+                {dollar?.source === "bluelytics" ? "Bluelytics" : "DolarApi"})
+              </a>
+              <strong className="text-[#111111]">:</strong>{" "}
+              {formatCurrency(dollar?.baseValue ?? 0, "es-AR", "ARS")}
             </div>
             <div>
-              <strong className="text-[#111111]">Última actualización API:</strong> {formattedUpdatedAt}
+              <strong className="text-[#111111]">Valor actual:</strong>{" "}
+              {formatCurrency(dollar?.value ?? 0, "es-AR", "ARS")}
+            </div>
+            <div>
+              <strong className="text-[#111111]">
+                Última actualización API:
+              </strong>{" "}
+              {formattedApiUpdatedAt}
+            </div>
+            <div>
+              <strong className="text-[#111111]">
+                Última modificación backend:
+              </strong>{" "}
+              {formattedBackendUpdatedAt}
             </div>
           </section>
 
@@ -62,9 +96,13 @@ const ConfigurationPage = () => {
                 type="number"
                 step={isPercentage ? 0.01 : 1}
                 value={addedValue}
-                onChange={(e) => setAddedValue(Number(e.target.value))}
+                onChange={(e) =>
+                  setAddedValue(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
                 disabled={loading}
-                min={0}
+                min={undefined}
                 className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]"
                 required
               />

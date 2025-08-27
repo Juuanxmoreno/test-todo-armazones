@@ -21,6 +21,7 @@ import { AnalyticsPeriod } from "@/enums/analytics.enum";
 import StockConflictAlert from "@/components/StockConflictAlert";
 import PendingPaymentInfo from "@/components/PendingPaymentInfo";
 import { downloadOrderPDF } from "@/utils/downloadOrderPDF";
+import LoadingSpinner from "@/components/atoms/LoadingSpinner";
 
 const EditOrderPage = () => {
   // All hooks at the top, always called in the same order
@@ -49,7 +50,7 @@ const EditOrderPage = () => {
   const [form, setForm] = useState<Order | null>(null);
   const [originalForm, setOriginalForm] = useState<Order | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [productQuery, setProductQuery] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const [itemOperationLoading, setItemOperationLoading] = useState<
     string | null
@@ -83,14 +84,25 @@ const EditOrderPage = () => {
   // Estados para el sistema de reembolsos
   const [refundForm, setRefundForm] = useState<{
     isOpen: boolean;
-    type: 'fixed' | 'percentage';
+    type: "fixed" | "percentage";
     amount: string;
     reason: string;
   }>({
     isOpen: false,
-    type: 'fixed',
-    amount: '',
-    reason: '',
+    type: "fixed",
+    amount: "",
+    reason: "",
+  });
+
+  // Estados para el modal de añadir items
+  const [addItemsModal, setAddItemsModal] = useState<{
+    isOpen: boolean;
+    productQuery: string;
+    quantities: Record<string, number>; // variantId -> quantity
+  }>({
+    isOpen: false,
+    productQuery: "",
+    quantities: {},
   });
 
   const { searchProducts, searchResults, searchLoading, clearSearchResults } =
@@ -385,14 +397,16 @@ const EditOrderPage = () => {
     }
   };
 
-  // Buscar productos/variantes
-  const handleProductSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (productQuery) searchProducts(productQuery);
+  // Buscar productos/variantes para el modal
+  const handleProductSearch = (query: string) => {
+    if (query) searchProducts(query);
   };
 
   // Agregar ProductVariant a la orden
-  const handleAddVariant = async (variant: ProductVariant) => {
+  const handleAddVariant = async (
+    variant: ProductVariant,
+    quantity: number = 1
+  ) => {
     if (!form) return;
     if (form.items.some((v) => v.productVariant.id === variant.id)) {
       addWarning("Este producto ya está en la orden");
@@ -408,7 +422,7 @@ const EditOrderPage = () => {
           {
             productVariantId: variant.id,
             action: "add" as const,
-            quantity: 1,
+            quantity: quantity,
           },
         ],
       };
@@ -419,6 +433,17 @@ const EditOrderPage = () => {
       setForm(result);
       setOriginalForm(result);
       addSuccess(`Producto agregado correctamente`);
+
+      // Solo limpiar la cantidad de la variante agregada, no toda la búsqueda
+      if (addItemsModal.isOpen) {
+        setAddItemsModal((prev) => ({
+          ...prev,
+          quantities: {
+            ...prev.quantities,
+            [variant.id]: 1,
+          },
+        }));
+      }
     } catch (error) {
       console.error("Error al agregar variante:", error);
       addError(`Error al agregar el producto: ${error || "Error desconocido"}`);
@@ -707,21 +732,24 @@ const EditOrderPage = () => {
     if (form?.id) {
       checkOrderRefundEligibility(form.id);
     }
-    setRefundForm(prev => ({ ...prev, isOpen: true }));
+    setRefundForm((prev) => ({ ...prev, isOpen: true }));
   };
 
   const handleCloseRefundForm = () => {
     setRefundForm({
       isOpen: false,
-      type: 'fixed',
-      amount: '',
-      reason: '',
+      type: "fixed",
+      amount: "",
+      reason: "",
     });
     clearRefundInfo();
   };
 
-  const handleRefundFormChange = (field: 'type' | 'amount' | 'reason', value: string) => {
-    setRefundForm(prev => ({ ...prev, [field]: value }));
+  const handleRefundFormChange = (
+    field: "type" | "amount" | "reason",
+    value: string
+  ) => {
+    setRefundForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleApplyRefund = async () => {
@@ -733,7 +761,7 @@ const EditOrderPage = () => {
       return;
     }
 
-    if (refundForm.type === 'percentage' && amount > 100) {
+    if (refundForm.type === "percentage" && amount > 100) {
       addError("El porcentaje no puede ser mayor a 100");
       return;
     }
@@ -757,9 +785,73 @@ const EditOrderPage = () => {
         }
       },
       (error) => {
-        addError(`Error al aplicar el reembolso: ${error || "Error desconocido"}`);
+        addError(
+          `Error al aplicar el reembolso: ${error || "Error desconocido"}`
+        );
       }
     );
+  };
+
+  // Funciones para manejar el modal de añadir items
+  const handleOpenAddItemsModal = () => {
+    setAddItemsModal({ isOpen: true, productQuery: "", quantities: {} });
+  };
+
+  const handleCloseAddItemsModal = () => {
+    setAddItemsModal({ isOpen: false, productQuery: "", quantities: {} });
+    clearSearchResults();
+  };
+
+  const handleAddItemsSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (addItemsModal.productQuery) {
+      handleProductSearch(addItemsModal.productQuery);
+    }
+  };
+
+  // Función para actualizar la cantidad de una variante en el modal
+  const handleVariantQuantityChange = (variantId: string, quantity: number) => {
+    setAddItemsModal((prev) => ({
+      ...prev,
+      quantities: {
+        ...prev.quantities,
+        [variantId]: Math.max(1, quantity),
+      },
+    }));
+  };
+
+  // Función para agregar variante con cantidad desde el modal
+  const handleAddVariantWithQuantity = async (variant: ProductVariant) => {
+    const quantity = addItemsModal.quantities[variant.id] || 1;
+    await handleAddVariant(variant, quantity);
+    // La cantidad ya se resetea en handleAddVariant, no necesitamos hacer nada más aquí
+  };
+
+  const handleDownloadPDF = async () => {
+    if (
+      !form?.id ||
+      !form.shippingAddress.firstName ||
+      !form.shippingAddress.lastName ||
+      !form.orderNumber
+    ) {
+      addError("Faltan datos para descargar el PDF.");
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      await downloadOrderPDF(
+        form.id,
+        form.shippingAddress.firstName,
+        form.shippingAddress.lastName,
+        form.orderNumber
+      );
+      addSuccess("PDF descargado exitosamente.");
+    } catch {
+      addError("Error al descargar el PDF.");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -1149,90 +1241,6 @@ const EditOrderPage = () => {
                     />
                   </div>
                 </div>
-                {/* Edición de ítems */}
-                <div className="mb-2">
-                  <label
-                    className="block mb-1 text-sm"
-                    style={{ color: "#7A7A7A" }}
-                  >
-                    Buscar producto o SKU para agregar variante
-                  </label>
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      placeholder="Buscar producto o SKU"
-                      value={productQuery}
-                      onChange={(e) => setProductQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleProductSearch(e as React.FormEvent);
-                        }
-                      }}
-                      className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
-                      style={{ borderColor: "#e1e1e1" }}
-                    />
-                    <button
-                      type="button"
-                      className="btn rounded-none shadow-none border-none h-12 px-4 text-white bg-[#222222]"
-                      onClick={handleProductSearch}
-                    >
-                      Buscar
-                    </button>
-                    <button
-                      type="button"
-                      className="btn rounded-none shadow-none border-none h-12 px-4 text-[#222222] bg-[#e0e0e0]"
-                      onClick={clearSearchResults}
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                  {searchLoading && (
-                    <div className="text-[#222222] mt-1">
-                      Buscando productos...
-                    </div>
-                  )}
-                  {searchResults.length > 0 && (
-                    <div className="mt-2">
-                      <div className="font-semibold mb-1 text-[#222222]">
-                        Resultados:
-                      </div>
-                      <ul className="space-y-1">
-                        {searchResults.map((product) => (
-                          <li
-                            key={product.id}
-                            className="border rounded p-2 bg-white"
-                          >
-                            <div className="font-medium text-[#222222]">
-                              {product.productModel} ({product.sku})
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {product.variants.map((variant) => (
-                                <button
-                                  key={variant.id}
-                                  type="button"
-                                  className="btn btn-xs btn-outline text-[#222222] border-[#bdbdbd] bg-white rounded-none"
-                                  onClick={() => handleAddVariant(variant)}
-                                  disabled={
-                                    form.items.some(
-                                      (v) => v.productVariant.id === variant.id
-                                    ) || itemOperationLoading === variant.id
-                                  }
-                                >
-                                  {itemOperationLoading === variant.id ? (
-                                    <span className="loading loading-spinner loading-xs"></span>
-                                  ) : (
-                                    `${variant.color.name} (Stock: ${variant.stock})`
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
                 {/* Lista de variantes seleccionadas */}
                 {form.items.length > 0 && (
                   <div className="mb-2">
@@ -1388,6 +1396,27 @@ const EditOrderPage = () => {
                               </td>
                             </tr>
                           ))}
+                          {form.refund && (
+                            <tr>
+                              <td
+                                colSpan={5}
+                                className="text-sm text-[#A00000]"
+                              >
+                                Reembolso: -
+                                {formatCurrency(
+                                  form.refund.appliedAmount,
+                                  "en-US",
+                                  "USD"
+                                )}
+                                {form.refund.reason && (
+                                  <span className="text-xs text-[#A00000]">
+                                    {" "}
+                                    - {form.refund.reason}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1428,6 +1457,24 @@ const EditOrderPage = () => {
                   </div>
                   <div className="flex justify-between items-center mt-2">
                     <span className="text-sm font-semibold text-[#222222]">
+                      Total en ARS:
+                    </span>
+                    <span className="text-sm text-[#222222]">
+                      {formatCurrency(form.totalAmountARS, "es-AR", "ARS")}
+                    </span>
+                  </div>
+                  {form.refund && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-sm font-semibold text-[#A00000]">
+                        Reembolso:
+                      </span>
+                      <span className="text-sm text-[#A00000]">
+                        -{formatCurrency(form.refund.amount, "en-US", "USD")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm font-semibold text-[#222222]">
                       Cost of Goods:
                     </span>
                     <span className="text-sm text-[#222222]">
@@ -1447,6 +1494,14 @@ const EditOrderPage = () => {
                     </span>
                   </div>
                 </div>
+                {/* Botón para añadir items */}
+                <button
+                  type="button"
+                  onClick={handleOpenAddItemsModal}
+                  className="mt-4 btn rounded-none shadow-none border-none h-12 px-6 w-full transition-colors duration-300 ease-in-out text-white bg-[#222222] hover:bg-[#111111]"
+                >
+                  Add Items
+                </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !hasChanges()}
@@ -1477,11 +1532,11 @@ const EditOrderPage = () => {
               </p>
               <button
                 type="button"
-                onClick={() => downloadOrderPDF(form.id, form.shippingAddress.firstName, form.shippingAddress.lastName, form.orderNumber)}
+                onClick={handleDownloadPDF}
                 className="btn w-full rounded-none shadow-none border-none h-10 px-4 text-white bg-[#222222] hover:bg-[#111111]"
                 aria-label="Descargar remito"
               >
-                Descargar remito
+                {isDownloading ? <LoadingSpinner /> : "Descargar remito"}
               </button>
             </div>
 
@@ -1578,24 +1633,34 @@ const EditOrderPage = () => {
                   </div>
                   <div className="space-y-1 text-sm text-green-700">
                     <p>
-                      <span className="font-medium">Tipo:</span> {form.refund.type === 'fixed' ? 'Monto Fijo' : 'Porcentaje'}
+                      <span className="font-medium">Tipo:</span>{" "}
+                      {form.refund.type === "fixed"
+                        ? "Monto Fijo"
+                        : "Porcentaje"}
                     </p>
                     <p>
-                      <span className="font-medium">Valor:</span> {form.refund.type === 'fixed' 
+                      <span className="font-medium">Valor:</span>{" "}
+                      {form.refund.type === "fixed"
                         ? formatCurrency(form.refund.amount, "en-US", "USD")
-                        : `${form.refund.amount}%`
-                      }
+                        : `${form.refund.amount}%`}
                     </p>
                     <p>
-                      <span className="font-medium">Monto aplicado:</span> {formatCurrency(form.refund.appliedAmount, "en-US", "USD")}
+                      <span className="font-medium">Monto aplicado:</span>{" "}
+                      {formatCurrency(
+                        form.refund.appliedAmount,
+                        "en-US",
+                        "USD"
+                      )}
                     </p>
                     {form.refund.reason && (
                       <p>
-                        <span className="font-medium">Razón:</span> {form.refund.reason}
+                        <span className="font-medium">Razón:</span>{" "}
+                        {form.refund.reason}
                       </p>
                     )}
                     <p>
-                      <span className="font-medium">Procesado:</span> {new Date(form.refund.processedAt).toLocaleDateString()}
+                      <span className="font-medium">Procesado:</span>{" "}
+                      {new Date(form.refund.processedAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -1637,6 +1702,327 @@ const EditOrderPage = () => {
         />
       )}
 
+      {/* Modal de Añadir Items */}
+      {addItemsModal.isOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box w-full max-w-4xl rounded-none border border-[#e1e1e1] bg-[#FFFFFF] text-[#222222] p-0 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[#FFFFFF] border-b border-[#e1e1e1] flex justify-between items-center h-12 z-30">
+              <h3 className="font-bold text-lg text-[#111111] m-0 px-4">
+                Añadir Items a la Orden
+              </h3>
+              <button
+                className="btn btn-sm bg-transparent text-[#333333] hover:text-[#111111] shadow-none h-full w-12 border-l border-[#e1e1e1] border-t-0 border-r-0 border-b-0 m-0"
+                onClick={handleCloseAddItemsModal}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Formulario de búsqueda */}
+              <form onSubmit={handleAddItemsSearch} className="mb-6">
+                <label className="block text-sm text-[#7A7A7A] mb-2">
+                  Buscar producto o SKU
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Buscar producto o SKU"
+                    value={addItemsModal.productQuery}
+                    onChange={(e) =>
+                      setAddItemsModal((prev) => ({
+                        ...prev,
+                        productQuery: e.target.value,
+                      }))
+                    }
+                    className="input w-full border rounded-none bg-[#FFFFFF] text-[#222222]"
+                    style={{ borderColor: "#e1e1e1" }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn rounded-none shadow-none border-none h-12 px-4 text-white bg-[#222222] hover:bg-[#111111]"
+                  >
+                    Buscar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn rounded-none shadow-none border-none h-12 px-4 text-[#222222] bg-[#e0e0e0] hover:bg-[#d0d0d0]"
+                    onClick={() => {
+                      setAddItemsModal((prev) => ({
+                        ...prev,
+                        productQuery: "",
+                      }));
+                      clearSearchResults();
+                    }}
+                  >
+                    Limpiar
+                  </button>
+                </div>
+                {addItemsModal.productQuery && (
+                  <p className="text-xs text-[#7A7A7A] mt-2">
+                    💡 Los items agregados permanecerán visibles arriba. Usa
+                    &quot;Limpiar&quot; para nueva búsqueda.
+                  </p>
+                )}
+              </form>
+
+              {/* Estado de carga */}
+              {searchLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#222222]"></div>
+                  <span className="ml-3 text-[#222222]">
+                    Buscando productos...
+                  </span>
+                </div>
+              )}
+
+              {/* Items agregados en esta sesión */}
+              {form && form.items.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-semibold mb-4 text-[#222222]">
+                    Items en la orden ({form.items.length} items)
+                  </h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto bg-green-50 border border-green-200 rounded-none p-4">
+                    {form.items.map((item) => (
+                      <div
+                        key={item.productVariant.id}
+                        className="flex items-center justify-between p-2 bg-white border border-green-200 rounded-none"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div
+                            className="w-4 h-4 rounded-full border border-gray-300"
+                            style={{
+                              backgroundColor: item.productVariant.color.hex,
+                            }}
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-[#222222]">
+                              {item.productVariant.product.productModel}
+                            </span>
+                            <div className="text-xs text-[#7A7A7A]">
+                              Color: {item.productVariant.color.name} | SKU:{" "}
+                              {item.productVariant.product.sku}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-green-700">
+                            Cantidad: {item.quantity}
+                          </span>
+                          <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-none">
+                            ✓ Agregado
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resultados de búsqueda */}
+              {searchResults.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-4 text-[#222222]">
+                    Resultados de búsqueda ({searchResults.length} productos
+                    encontrados)
+                  </h4>
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {searchResults.map((product) => (
+                      <div
+                        key={product.id}
+                        className="border border-[#e1e1e1] rounded-none p-4 bg-white"
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Imagen del producto */}
+                          <div className="flex-shrink-0 w-16 h-16 overflow-hidden rounded-md bg-gray-50 border border-gray-200">
+                            <Image
+                              src={
+                                (process.env.NEXT_PUBLIC_API_URL || "") +
+                                (product.primaryImage ||
+                                  "/placeholder-image.jpg")
+                              }
+                              alt={product.productModel}
+                              width={64}
+                              height={64}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+
+                          {/* Información del producto */}
+                          <div className="flex-1">
+                            <h5 className="font-medium text-[#222222] mb-1">
+                              {product.productModel}
+                            </h5>
+                            <p className="text-sm text-[#7A7A7A] mb-2">
+                              SKU: {product.sku}
+                            </p>
+
+                            {/* Variantes disponibles */}
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-[#222222]">
+                                Variantes disponibles:
+                              </p>
+                              <div className="space-y-3">
+                                {product.variants.map((variant) => {
+                                  const isAlreadyInOrder = form?.items.some(
+                                    (item) =>
+                                      item.productVariant.id === variant.id
+                                  );
+                                  const isLoading =
+                                    itemOperationLoading === variant.id;
+                                  const currentQuantity =
+                                    addItemsModal.quantities[variant.id] || 1;
+
+                                  return (
+                                    <div
+                                      key={variant.id}
+                                      className={`flex items-center justify-between p-3 border rounded-none ${
+                                        isAlreadyInOrder
+                                          ? "bg-[#f9f9f9] border-[#e1e1e1]"
+                                          : "bg-white border-[#e1e1e1]"
+                                      }`}
+                                    >
+                                      {/* Información de la variante */}
+                                      <div className="flex items-center gap-3 flex-1">
+                                        <div
+                                          className="w-4 h-4 rounded-full border border-gray-300"
+                                          style={{
+                                            backgroundColor: variant.color.hex,
+                                          }}
+                                        />
+                                        <div>
+                                          <span className="text-sm font-medium text-[#222222]">
+                                            {variant.color.name}
+                                          </span>
+                                          <div className="text-xs text-[#7A7A7A]">
+                                            Stock: {variant.stock}
+                                            {isAlreadyInOrder && (
+                                              <span className="ml-2 text-green-600">
+                                                ✓ En orden
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Controles de cantidad y botón agregar */}
+                                      {!isAlreadyInOrder && (
+                                        <div className="flex items-center gap-2">
+                                          {/* Control de cantidad */}
+                                          <div className="flex items-center border border-[#e1e1e1] rounded-none">
+                                            <button
+                                              type="button"
+                                              className="px-2 py-1 text-[#222222] hover:bg-[#f9f9f9] disabled:opacity-50"
+                                              onClick={() =>
+                                                handleVariantQuantityChange(
+                                                  variant.id,
+                                                  currentQuantity - 1
+                                                )
+                                              }
+                                              disabled={currentQuantity <= 1}
+                                            >
+                                              -
+                                            </button>
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              max={variant.stock}
+                                              value={currentQuantity}
+                                              onChange={(e) =>
+                                                handleVariantQuantityChange(
+                                                  variant.id,
+                                                  parseInt(e.target.value) || 1
+                                                )
+                                              }
+                                              className="w-16 px-2 py-1 text-center text-sm border-none outline-none bg-transparent"
+                                            />
+                                            <button
+                                              type="button"
+                                              className="px-2 py-1 text-[#222222] hover:bg-[#f9f9f9] disabled:opacity-50"
+                                              onClick={() =>
+                                                handleVariantQuantityChange(
+                                                  variant.id,
+                                                  currentQuantity + 1
+                                                )
+                                              }
+                                              disabled={
+                                                currentQuantity >= variant.stock
+                                              }
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+
+                                          {/* Botón agregar */}
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm rounded-none shadow-none border border-[#222222] bg-[#222222] text-white hover:bg-[#111111] disabled:bg-gray-400 disabled:border-gray-400"
+                                            onClick={() =>
+                                              handleAddVariantWithQuantity(
+                                                variant
+                                              )
+                                            }
+                                            disabled={
+                                              isLoading ||
+                                              currentQuantity > variant.stock
+                                            }
+                                          >
+                                            {isLoading ? (
+                                              <>
+                                                <span className="loading loading-spinner loading-xs mr-1"></span>
+                                                Agregando...
+                                              </>
+                                            ) : (
+                                              "Agregar"
+                                            )}
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {/* Indicador para variantes ya en orden */}
+                                      {isAlreadyInOrder && (
+                                        <div className="text-sm text-[#7A7A7A]">
+                                          Ya agregado
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Estado vacío */}
+              {!searchLoading &&
+                searchResults.length === 0 &&
+                addItemsModal.productQuery && (
+                  <div className="text-center py-8">
+                    <p className="text-[#7A7A7A]">
+                      No se encontraron productos para &quot;{addItemsModal.productQuery}&quot;
+                    </p>
+                  </div>
+                )}
+
+              {/* Instrucciones iniciales */}
+              {!addItemsModal.productQuery && searchResults.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-[#7A7A7A]">
+                    Usa el campo de búsqueda para encontrar productos por nombre
+                    o SKU
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </dialog>
+      )}
+
       {/* Modal de Reembolso */}
       {refundForm.isOpen && (
         <dialog className="modal modal-open">
@@ -1659,7 +2045,9 @@ const EditOrderPage = () => {
               {refundEligibilityLoading ? (
                 <div className="text-center py-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#2271B1] mx-auto"></div>
-                  <p className="text-sm text-[#333333] mt-2">Verificando elegibilidad...</p>
+                  <p className="text-sm text-[#333333] mt-2">
+                    Verificando elegibilidad...
+                  </p>
                 </div>
               ) : refundEligibility ? (
                 refundEligibility.canRefund ? (
@@ -1667,10 +2055,12 @@ const EditOrderPage = () => {
                     {/* Order Info */}
                     <div className="mb-4">
                       <p className="text-sm text-[#333333]">
-                        <strong className="text-[#111111]">Orden:</strong> #{form.orderNumber}
+                        <strong className="text-[#111111]">Orden:</strong> #
+                        {form.orderNumber}
                       </p>
                       <p className="text-sm text-[#333333]">
-                        <strong className="text-[#111111]">Cliente:</strong> {form.user.displayName}
+                        <strong className="text-[#111111]">Cliente:</strong>{" "}
+                        {form.user.displayName}
                       </p>
                     </div>
 
@@ -1685,22 +2075,30 @@ const EditOrderPage = () => {
                             type="radio"
                             name="refundType"
                             value="fixed"
-                            checked={refundForm.type === 'fixed'}
-                            onChange={(e) => handleRefundFormChange('type', e.target.value)}
+                            checked={refundForm.type === "fixed"}
+                            onChange={(e) =>
+                              handleRefundFormChange("type", e.target.value)
+                            }
                             className="mr-2 text-[#2271B1]"
                           />
-                          <span className="text-sm text-[#333333]">Monto Fijo (USD)</span>
+                          <span className="text-sm text-[#333333]">
+                            Monto Fijo (USD)
+                          </span>
                         </label>
                         <label className="flex items-center">
                           <input
                             type="radio"
                             name="refundType"
                             value="percentage"
-                            checked={refundForm.type === 'percentage'}
-                            onChange={(e) => handleRefundFormChange('type', e.target.value)}
+                            checked={refundForm.type === "percentage"}
+                            onChange={(e) =>
+                              handleRefundFormChange("type", e.target.value)
+                            }
                             className="mr-2 text-[#2271B1]"
                           />
-                          <span className="text-sm text-[#333333]">Porcentaje (%)</span>
+                          <span className="text-sm text-[#333333]">
+                            Porcentaje (%)
+                          </span>
                         </label>
                       </div>
                     </div>
@@ -1708,24 +2106,36 @@ const EditOrderPage = () => {
                     {/* Amount */}
                     <div>
                       <label className="block text-sm font-medium text-[#111111] mb-1">
-                        {refundForm.type === 'fixed' ? 'Monto (USD)' : 'Porcentaje (%)'}
+                        {refundForm.type === "fixed"
+                          ? "Monto (USD)"
+                          : "Porcentaje (%)"}
                       </label>
                       <input
                         type="number"
-                        step={refundForm.type === 'fixed' ? '0.01' : '1'}
+                        step={refundForm.type === "fixed" ? "0.01" : "1"}
                         min="0"
-                        max={refundForm.type === 'percentage' ? '100' : undefined}
+                        max={
+                          refundForm.type === "percentage" ? "100" : undefined
+                        }
                         value={refundForm.amount}
-                        onChange={(e) => handleRefundFormChange('amount', e.target.value)}
-                        placeholder={refundForm.type === 'fixed' ? '0.00' : '0'}
+                        onChange={(e) =>
+                          handleRefundFormChange("amount", e.target.value)
+                        }
+                        placeholder={refundForm.type === "fixed" ? "0.00" : "0"}
                         className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]"
                         required
                       />
-                      {refundEligibility.maxRefundAmount && refundForm.type === 'fixed' && (
-                        <p className="text-xs text-[#333333] mt-1">
-                          Máximo reembolsable: {formatCurrency(refundEligibility.maxRefundAmount, "en-US", "USD")}
-                        </p>
-                      )}
+                      {refundEligibility.maxRefundAmount &&
+                        refundForm.type === "fixed" && (
+                          <p className="text-xs text-[#333333] mt-1">
+                            Máximo reembolsable:{" "}
+                            {formatCurrency(
+                              refundEligibility.maxRefundAmount,
+                              "en-US",
+                              "USD"
+                            )}
+                          </p>
+                        )}
                     </div>
 
                     {/* Reason */}
@@ -1735,7 +2145,9 @@ const EditOrderPage = () => {
                       </label>
                       <textarea
                         value={refundForm.reason}
-                        onChange={(e) => handleRefundFormChange('reason', e.target.value)}
+                        onChange={(e) =>
+                          handleRefundFormChange("reason", e.target.value)
+                        }
                         placeholder="Descripción del motivo del reembolso..."
                         className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]"
                         rows={3}
@@ -1745,15 +2157,32 @@ const EditOrderPage = () => {
                     {/* Preview */}
                     {refundForm.amount && (
                       <div className="bg-[#f8f9fa] p-3 rounded-none border border-[#e1e1e1]">
-                        <h4 className="text-sm font-medium text-[#111111] mb-2">Vista Previa:</h4>
+                        <h4 className="text-sm font-medium text-[#111111] mb-2">
+                          Vista Previa:
+                        </h4>
                         <div className="text-xs text-[#333333] space-y-1">
-                          <div>Tipo: {refundForm.type === 'fixed' ? 'Monto Fijo' : 'Porcentaje'}</div>
-                          <div>Valor: {refundForm.type === 'fixed' 
-                            ? `$${parseFloat(refundForm.amount || '0').toFixed(2)}` 
-                            : `${refundForm.amount}%`}
+                          <div>
+                            Tipo:{" "}
+                            {refundForm.type === "fixed"
+                              ? "Monto Fijo"
+                              : "Porcentaje"}
                           </div>
-                          {refundForm.type === 'percentage' && (
-                            <div>Monto estimado: ${((parseFloat(refundForm.amount || '0') / 100) * (form.subTotal || 0)).toFixed(2)}</div>
+                          <div>
+                            Valor:{" "}
+                            {refundForm.type === "fixed"
+                              ? `$${parseFloat(
+                                  refundForm.amount || "0"
+                                ).toFixed(2)}`
+                              : `${refundForm.amount}%`}
+                          </div>
+                          {refundForm.type === "percentage" && (
+                            <div>
+                              Monto estimado: $
+                              {(
+                                (parseFloat(refundForm.amount || "0") / 100) *
+                                (form.subTotal || 0)
+                              ).toFixed(2)}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1784,8 +2213,12 @@ const EditOrderPage = () => {
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
                       <span className="text-red-600 font-bold">!</span>
                     </div>
-                    <p className="text-red-600 font-medium mb-2">No se puede aplicar reembolso</p>
-                    <p className="text-sm text-[#333333]">{refundEligibility.reason}</p>
+                    <p className="text-red-600 font-medium mb-2">
+                      No se puede aplicar reembolso
+                    </p>
+                    <p className="text-sm text-[#333333]">
+                      {refundEligibility.reason}
+                    </p>
                     <button
                       type="button"
                       onClick={handleCloseRefundForm}
@@ -1797,7 +2230,9 @@ const EditOrderPage = () => {
                 )
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#333333]">Error al verificar elegibilidad</p>
+                  <p className="text-[#333333]">
+                    Error al verificar elegibilidad
+                  </p>
                   <button
                     type="button"
                     onClick={handleCloseRefundForm}

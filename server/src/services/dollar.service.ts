@@ -8,16 +8,21 @@ export class DollarService {
   private bluelyticsUrl = 'https://api.bluelytics.com.ar/v2/latest';
   private dolarApiUrl = 'https://dolarapi.com/v1/dolares/blue';
 
-  /**
-   * Obtiene el valor del dólar blue desde Bluelytics o DolarApi (fallback).
-   */
-  private async fetchDollarBaseValue(): Promise<number> {
+  private async fetchDollarBaseValue(): Promise<{
+    baseValue: number;
+    source: 'bluelytics' | 'dolarapi';
+    apiUpdatedAt: Date;
+  }> {
     try {
       const { data } = await axios.get(this.bluelyticsUrl, { timeout: 5000 });
       logger.info('Cotización obtenida de Bluelytics', {
         value: data?.blue?.value_sell,
       });
-      return data?.blue?.value_sell;
+      return {
+        baseValue: data?.blue?.value_sell,
+        source: 'bluelytics',
+        apiUpdatedAt: new Date(data?.last_update),
+      };
     } catch (err) {
       logger.warn('Fallo Bluelytics, intentando con DolarApi...', {
         error: err,
@@ -25,7 +30,11 @@ export class DollarService {
       try {
         const { data } = await axios.get(this.dolarApiUrl, { timeout: 5000 });
         logger.info('Cotización obtenida de DolarApi', { value: data?.venta });
-        return data?.venta;
+        return {
+          baseValue: data?.venta,
+          source: 'dolarapi',
+          apiUpdatedAt: new Date(data?.fechaActualizacion),
+        };
       } catch (err2) {
         logger.error('Fallo también DolarApi', { error: err2 });
         throw new AppError('No se pudo obtener la cotización del dólar', 503, 'error', true, {
@@ -36,63 +45,70 @@ export class DollarService {
     }
   }
 
-  /**
-   * Aplica el addedValue ya sea como porcentaje o valor fijo.
-   */
   private applyAddedValue(baseValue: number, addedValue: number, isPercentage: boolean): number {
-    if (isPercentage) {
-      return baseValue * (1 + addedValue / 100);
-    }
-    return baseValue + addedValue;
+    return isPercentage ? baseValue * (1 + addedValue / 100) : baseValue + addedValue;
   }
 
-  /**
-   * Actualiza el valor del dólar en la base de datos y devuelve un DTO.
-   */
   public async updateDollarValue(): Promise<dollarResponseDTO> {
-    const baseValue = await this.fetchDollarBaseValue();
+    const { baseValue, source, apiUpdatedAt } = await this.fetchDollarBaseValue();
 
     let dollar = await Dollar.findOne();
 
     if (!dollar) {
       dollar = new Dollar({
+        baseValue,
         value: baseValue,
         addedValue: 0,
         isPercentage: false,
-        latestAPIUpdate: new Date(),
+        source,
+        apiUpdatedAt,
       });
       logger.info('Nuevo registro de dólar creado en la base de datos', {
         baseValue,
       });
+    } else {
+      if (dollar.baseValue === baseValue) {
+        logger.info('El valor base obtenido es igual al almacenado. No se realizaron cambios.', {
+          baseValue,
+        });
+        return {
+          baseValue: dollar.baseValue,
+          value: dollar.value,
+          addedValue: dollar.addedValue,
+          isPercentage: dollar.isPercentage,
+          source: dollar.source,
+          apiUpdatedAt: dollar.apiUpdatedAt,
+          updatedAt: dollar.updatedAt,
+        };
+      }
+
+      dollar.baseValue = baseValue;
+      dollar.source = source;
+      dollar.apiUpdatedAt = apiUpdatedAt;
+      dollar.value = this.applyAddedValue(baseValue, dollar.addedValue, dollar.isPercentage);
     }
-
-    const finalValue = this.applyAddedValue(baseValue, dollar.addedValue, dollar.isPercentage);
-
-    dollar.value = finalValue;
-    dollar.latestAPIUpdate = new Date();
 
     await dollar.save();
 
     logger.info('Valor del dólar actualizado en la base de datos', {
-      finalValue,
+      finalValue: dollar.value,
       addedValue: dollar.addedValue,
       isPercentage: dollar.isPercentage,
+      source,
+      apiUpdatedAt,
     });
 
-    // Mapeo al DTO explícitamente
-    const response: dollarResponseDTO = {
+    return {
+      baseValue: dollar.baseValue,
       value: dollar.value,
       addedValue: dollar.addedValue,
       isPercentage: dollar.isPercentage,
-      latestAPIUpdate: dollar.latestAPIUpdate,
+      source: dollar.source,
+      apiUpdatedAt: dollar.apiUpdatedAt,
+      updatedAt: dollar.updatedAt,
     };
-
-    return response;
   }
 
-  /**
-   * Actualiza la configuración de addedValue e isPercentage.
-   */
   public async updateDollarConfig(dto: updateDollarAddedValueDTO): Promise<dollarResponseDTO> {
     const dollar = await Dollar.findOne();
 
@@ -104,38 +120,47 @@ export class DollarService {
       });
     }
 
-    // Actualizo configuración
+    if (dollar.addedValue === dto.addedValue && dollar.isPercentage === dto.isPercentage) {
+      logger.info('Los valores proporcionados son iguales a los almacenados. No se realizaron cambios.', {
+        addedValue: dto.addedValue,
+        isPercentage: dto.isPercentage,
+      });
+      return {
+        baseValue: dollar.baseValue,
+        value: dollar.value,
+        addedValue: dollar.addedValue,
+        isPercentage: dollar.isPercentage,
+        source: dollar.source,
+        apiUpdatedAt: dollar.apiUpdatedAt,
+        updatedAt: dollar.updatedAt,
+      };
+    }
+
     dollar.addedValue = dto.addedValue;
     dollar.isPercentage = dto.isPercentage;
 
-    // Recalculo el valor en base al último valor API guardado
-    const baseValue = await this.fetchDollarBaseValue().catch(() => dollar.value);
-    const finalValue = this.applyAddedValue(baseValue, dto.addedValue, dto.isPercentage);
-
-    dollar.value = finalValue;
-    dollar.latestAPIUpdate = new Date();
+    // Evitamos consultar una nueva base: usamos la ya guardada
+    dollar.value = this.applyAddedValue(dollar.baseValue, dto.addedValue, dto.isPercentage);
 
     await dollar.save();
 
     logger.info('Configuración del dólar actualizada', {
       addedValue: dto.addedValue,
       isPercentage: dto.isPercentage,
-      finalValue,
+      finalValue: dollar.value,
     });
 
-    const response: dollarResponseDTO = {
+    return {
+      baseValue: dollar.baseValue,
       value: dollar.value,
       addedValue: dollar.addedValue,
       isPercentage: dollar.isPercentage,
-      latestAPIUpdate: dollar.latestAPIUpdate,
+      source: dollar.source,
+      apiUpdatedAt: dollar.apiUpdatedAt,
+      updatedAt: dollar.updatedAt,
     };
-
-    return response;
   }
 
-  /**
-   * Retorna el valor actual del dólar (sin actualizarlo).
-   */
   public async getDollar(): Promise<dollarResponseDTO> {
     const dollar = await Dollar.findOne();
 
@@ -153,13 +178,14 @@ export class DollarService {
       isPercentage: dollar.isPercentage,
     });
 
-    const response: dollarResponseDTO = {
+    return {
+      baseValue: dollar.baseValue,
       value: dollar.value,
       addedValue: dollar.addedValue,
       isPercentage: dollar.isPercentage,
-      latestAPIUpdate: dollar.latestAPIUpdate,
+      source: dollar.source,
+      apiUpdatedAt: dollar.apiUpdatedAt,
+      updatedAt: dollar.updatedAt,
     };
-
-    return response;
   }
 }

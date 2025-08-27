@@ -4,8 +4,11 @@ export interface updateDollarAddedValueDTO {
 }
 
 export interface dollarResponseDTO {
+  baseValue: number;
   value: number;
   addedValue: number;
   isPercentage: boolean;
-  latestAPIUpdate: Date;
+  source: 'bluelytics' | 'dolarapi';
+  apiUpdatedAt: Date;
+  updatedAt: Date;
 }

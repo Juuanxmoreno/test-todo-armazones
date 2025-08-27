@@ -50,6 +50,15 @@ export const addressSchema = z
         message: "La dirección del punto de retiro es obligatoria",
       });
     }
+
+    // Validación para deliveryWindow cuando es Motorcycle
+    if (data.shippingMethod === ShippingMethod.Motorcycle && !data.deliveryWindow) {
+      ctx.addIssue({
+        path: ["deliveryWindow"],
+        code: z.ZodIssueCode.custom,
+        message: "El horario de entrega es obligatorio para envíos en moto",
+      });
+    }
   });
 
 export type AddressFormData = z.infer<typeof addressSchema>;

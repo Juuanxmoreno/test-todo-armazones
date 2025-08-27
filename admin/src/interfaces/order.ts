@@ -23,6 +23,7 @@ export interface Order {
   subTotal: number;
   bankTransferExpense?: number;
   totalAmount: number;
+  totalAmountARS: number;
   totalGainUSD: number;
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;

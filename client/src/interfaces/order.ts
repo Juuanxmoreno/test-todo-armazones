@@ -21,6 +21,7 @@ export interface Order {
   subTotal: number;
   bankTransferExpense?: number;
   totalAmount: number;
+  totalAmountARS: number;
   orderStatus: OrderStatus;
   createdAt: string;
   updatedAt: string;

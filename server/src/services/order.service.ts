@@ -41,6 +41,7 @@ import { generateOrderPDF } from '@utils/pdfGenerator';
 import { orderQueue } from '@config/bullmq';
 import { CartSyncError, CartSyncChange } from '../controllers/order.controller';
 import { IUser } from '@interfaces/user';
+import Dollar from '@models/Dollar';
 
 // Tipo para las consultas de filtrado de órdenes
 interface OrderQuery {
@@ -383,6 +384,7 @@ export class OrderService {
         bankTransferExpense: order.bankTransferExpense,
       }),
       totalAmount: order.totalAmount,
+      totalAmountARS: order.totalAmountARS ?? 0,
       totalGainUSD: order.totalGainUSD,
       orderStatus: order.orderStatus,
       allowViewInvoice: order.allowViewInvoice,
@@ -414,6 +416,7 @@ export class OrderService {
         bankTransferExpense: order.bankTransferExpense,
       }),
       totalAmount: order.totalAmount,
+      totalAmountARS: order.totalAmountARS ?? 0,
       orderStatus: order.orderStatus,
       allowViewInvoice: order.allowViewInvoice,
       refund: this.mapRefundToResponse(order.refund),
@@ -507,6 +510,15 @@ export class OrderService {
       // Calcular totales
       const { bankTransferExpense, totalAmount } = this.calculateTotals(subTotal, orderData.paymentMethod);
 
+      // Obtener el valor actual del dólar
+      const dollar = await Dollar.findOne().session(session);
+      if (!dollar) {
+        throw new AppError('No se encontró el valor del dólar en la base de datos.', 500, 'error');
+      }
+
+      // Calcular el totalAmountARS
+      const totalAmountARS = totalAmount * dollar.value;
+
       // Construir el objeto de orden
       const newOrder = this.buildOrderObject(
         orderNumber,
@@ -519,6 +531,9 @@ export class OrderService {
         totalAmount,
         totalGainUSD,
       );
+
+      // Asignar el totalAmountARS al objeto de orden
+      newOrder.totalAmountARS = totalAmountARS;
 
       // Guardar la orden
       const savedOrder = await this.saveOrder(newOrder, session);
@@ -590,6 +605,15 @@ export class OrderService {
       // Calcular totales
       const { bankTransferExpense, totalAmount } = this.calculateTotals(subTotal, orderData.paymentMethod);
 
+      // Obtener el valor actual del dólar
+      const dollar = await Dollar.findOne().session(session);
+      if (!dollar) {
+        throw new AppError('No se encontró el valor del dólar en la base de datos.', 500, 'error');
+      }
+
+      // Calcular el totalAmountARS
+      const totalAmountARS = totalAmount * dollar.value;
+
       // Construir objeto de orden
       const newOrder = this.buildOrderObject(
         orderNumber,
@@ -602,6 +626,9 @@ export class OrderService {
         totalAmount,
         totalGainUSD,
       );
+
+      // Asignar el totalAmountARS al objeto de orden
+      newOrder.totalAmountARS = totalAmountARS;
 
       // Guardar orden
       const savedOrder = await this.saveOrder(newOrder, session);
@@ -2089,8 +2116,12 @@ export class OrderService {
             originalSubTotal,
             refundAmount,
             newSubTotal,
-            ...(originalBankTransferExpense !== undefined && { originalBankTransferExpense }),
-            ...(newBankTransferExpense !== undefined && { newBankTransferExpense }),
+            ...(originalBankTransferExpense !== undefined && {
+              originalBankTransferExpense,
+            }),
+            ...(newBankTransferExpense !== undefined && {
+              newBankTransferExpense,
+            }),
             originalTotalAmount,
             newTotalAmount,
           },
@@ -2169,5 +2200,27 @@ export class OrderService {
       canRefund: true,
       maxRefundAmount: order.subTotal,
     };
+  }
+
+  // Método para actualizar el campo totalAmountARS en todas las órdenes no completadas
+  public async updateOrdersWithDollarValue(): Promise<void> {
+    await withTransaction(async (session) => {
+      const dollar = await Dollar.findOne().session(session);
+      if (!dollar) {
+        throw new AppError('No se encontró el valor del dólar en la base de datos.', 500, 'error');
+      }
+
+      const ordersToUpdate = await Order.find({
+        orderStatus: { $ne: OrderStatus.Completed },
+      }).session(session);
+
+      for (const order of ordersToUpdate) {
+        order.totalAmountARS = order.totalAmount * dollar.value;
+        await order.save({ session });
+      }
+
+      logger.info('Órdenes actualizadas con el valor del dólar actual.');
+      return null; // Retorna un valor explícito para evitar errores
+    });
   }
 }

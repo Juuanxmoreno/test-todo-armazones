@@ -4,6 +4,7 @@ import env from '@config/env';
 import logger from '@config/logger';
 import { AppError } from '@utils/AppError';
 import 'queues/order-queue.processor';
+import 'cron/dollar.cron';
 
 const startServer = async (): Promise<void> => {
   try {

@@ -150,7 +150,10 @@ const OrdersPage = () => {
                     <OrderStatusBadge status={order.orderStatus} />
                   </td>
                   <td className="hidden sm:table-cell text-[#555555]">
-                    {formatCurrency(order.totalAmount, "es-AR", "ARS")}
+                    {formatCurrency(order.totalAmount, "en-US", "USD")}
+                  </td>
+                  <td>
+                    {formatCurrency(order.totalAmountARS, "es-AR", "ARS")}
                   </td>
                 </tr>
               );

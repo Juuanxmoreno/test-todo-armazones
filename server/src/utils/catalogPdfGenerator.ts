@@ -50,11 +50,6 @@ export async function generateCatalogPDF(catalogData: CatalogDataDto): Promise<B
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--allow-running-insecure-content',
-      '--disable-features=VizDisplayCompositor',
     ],
   });
 

@@ -28,13 +28,16 @@ export default function Sidebar() {
     { label: "Analítica", icon: <ChartArea size={20} />, href: "/analytics" },
     { label: "Pedidos", icon: <ShoppingCart size={20} />, href: "/orders" },
     { label: "Productos", icon: <Package size={20} />, href: "/products" },
-    { label: "Gastos", icon: <BanknoteArrowDown size={20} />, href: "/expenses" },
+    {
+      label: "Gastos",
+      icon: <BanknoteArrowDown size={20} />,
+      href: "/expenses",
+    },
     { label: "Clientes", icon: <Users size={20} />, href: "/customers" },
     {
-      className: "cursor-not-allowed",
       label: "Configuración",
       icon: <Settings size={20} />,
-      href: "/settings",
+      href: "/configuration",
     },
   ];
 
@@ -77,30 +80,17 @@ export default function Sidebar() {
             className="mb-6 hidden md:block"
           />
           <nav className="space-y-4">
-            {navItems.map((item) =>
-              item.label === "Configuración" ? (
-                <div
-                  key={item.href}
-                  className="flex items-center gap-3 text-gray-700 p-2 rounded-md bg-white transition-colors cursor-not-allowed select-none"
-                  aria-disabled="true"
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </div>
-              ) : (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 text-gray-700 hover:text-black p-2 rounded-md hover:bg-gray-100 transition-colors ${
-                    item.className || ""
-                  }`}
-                  onClick={() => setIsOpen(false)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </Link>
-              )
-            )}
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 text-gray-700 hover:text-black p-2 rounded-md hover:bg-gray-100 transition-colors`}
+                onClick={() => setIsOpen(false)}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </Link>
+            ))}
             <button
               className="w-full text-left flex items-center gap-3 text-gray-700 hover:text-black p-2 rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
               onClick={handleLogout}
