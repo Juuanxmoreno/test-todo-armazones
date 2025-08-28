@@ -113,6 +113,7 @@ const OrdersPage = () => {
               <th className="hidden sm:table-cell text-[#222222]">Fecha</th>
               <th className="text-[#222222]">Estado</th>
               <th className="hidden sm:table-cell text-[#222222]">Total</th>
+              <th className="text-[#222222]">Total (ARS)</th>
             </tr>
           </thead>
           <tbody>
