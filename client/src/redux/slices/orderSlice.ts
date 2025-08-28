@@ -7,7 +7,7 @@ import {
 import { RootState } from "../store";
 import axiosInstance from "@/utils/axiosInstance";
 import { authRequiredRequest } from "@/utils/authRequiredRequest";
-import { getErrorMessage, ApiResponse } from "@/types/api";
+import { getErrorMessage, ApiResponse, isApiError } from "@/types/api";
 import { OrderStatus } from "@/enums/order.enum";
 import { IUser } from "@/interfaces/user";
 
@@ -67,19 +67,19 @@ export const createOrder = createAsyncThunk<
       throw new Error(res.data.message || "Error al crear la orden.");
     }
   } catch (error: unknown) {
-    // Manejo especial para error de sincronización de carrito
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "response" in error &&
-      typeof (error as { response?: unknown }).response === "object" &&
-      (error as { response?: { data?: unknown } }).response?.data &&
-      typeof (error as { response: { data: unknown } }).response.data === "object"
-    ) {
-      const data = (error as { response: { data: unknown } }).response.data as Record<string, unknown>;
+    // Usar los helpers de api.ts para verificar si es un error de API
+    if (isApiError(error) && error.response?.status === 409) {
+      // Error 409 es el código para CartSyncError
+      const data = error.response.data;
+      
+      // Verificar que tiene la estructura esperada del CartSyncError
       if (
+        'changes' in data &&
+        'cart' in data &&
+        'message' in data &&
         Array.isArray(data.changes) &&
-        typeof data.cart === "object" && data.cart !== null &&
+        typeof data.cart === "object" && 
+        data.cart !== null &&
         typeof data.message === "string"
       ) {
         return thunkAPI.rejectWithValue({
@@ -89,6 +89,8 @@ export const createOrder = createAsyncThunk<
         });
       }
     }
+    
+    // Para cualquier otro error, usar el helper
     return thunkAPI.rejectWithValue(getErrorMessage(error));
   }
 });

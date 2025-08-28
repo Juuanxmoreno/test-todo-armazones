@@ -15,11 +15,11 @@ export interface OrderAnalyticsQueryDto {
 // DTO para respuesta de métricas de órdenes
 export interface OrderAnalyticsMetricsDto {
   gross: number;
-  net: number;
+  net: number; // Ahora representa el margen de contribución total
   count: number;
   items: number;
   averageGrossDaily: number;
-  averageNetDaily: number;
+  averageNetDaily: number; // Ahora representa el promedio diario de margen de contribución
 }
 
 // DTO para un punto del breakdown temporal
@@ -42,11 +42,11 @@ export interface AnalyticsPeriodDto {
 // DTO para comparación con período anterior
 export interface OrderAnalyticsComparisonDto {
   grossChange: number; // Porcentaje de cambio
-  netChange: number;
+  netChange: number; // Ahora representa cambio en margen de contribución
   countChange: number;
   itemsChange: number;
   averageGrossDailyChange: number;
-  averageNetDailyChange: number;
+  averageNetDailyChange: number; // Ahora representa cambio en promedio diario de margen de contribución
 }
 
 // DTO para datos del período anterior

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Minus, Percent } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import { PriceAdjustment, Category, Subcategory } from '@/interfaces/catalog';
 
 interface PriceAdjustmentsProps {
@@ -23,35 +23,73 @@ const PriceAdjustments: React.FC<PriceAdjustmentsProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="font-semibold text-[#222222]">
-          Configurar Incrementos de Precio
+        <h4 className="font-semibold text-[#222222] flex items-center gap-2">
+          <span className="text-2xl">💰</span>
+          ¡Aumenta tus ganancias con precios inteligentes!
         </h4>
         <button
           type="button"
           onClick={onAdd}
-          className="btn btn-sm bg-[#222222] text-white hover:bg-[#111111] border-none"
+          className="btn btn-sm bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 border-none shadow-lg transform hover:scale-105 transition-all duration-200"
         >
           <Plus className="w-4 h-4" />
-          Agregar
+          Agregar Ajuste
         </button>
       </div>
 
       <div className="text-sm text-[#666666] mb-4">
-        <p className="mb-2">
-          <strong>Configuración de incrementos por categoría o subcategoría:</strong>
-        </p>
-        <ul className="list-disc list-inside space-y-1">
-          <li>Especifica categoría O subcategoría (no ambos)</li>
-          <li>Los ajustes por subcategoría tienen prioridad</li>
-          <li>Ejemplo: 35% incrementa $100 a $135</li>
-        </ul>
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-100">
+          <p className="mb-3 font-medium text-[#222222] flex items-center gap-2">
+            <span className="text-lg">🎯</span>
+            ¡Haz que cada venta cuente más!
+          </p>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-1">✓</span>
+              <span><strong>Preciso:</strong> Aplica incrementos a categorías específicas o combina categoría + subcategoría</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-1">✓</span>
+              <span><strong>Flexible:</strong> Los ajustes más específicos tienen prioridad automática</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-600 font-bold mt-1">✓</span>
+              <span><strong>Lucrativo:</strong> 35% de incremento = $100 → $135 ¡Más ganancias por venta!</span>
+            </li>
+          </ul>
+        </div>
       </div>
 
       {priceAdjustments.length === 0 ? (
-        <div className="text-center py-8 text-[#666666]">
-          <Percent className="w-8 h-8 mx-auto mb-2 text-[#999999]" />
-          <p>No hay ajustes de precio configurados</p>
-          <p className="text-sm">Haz clic en &quot;Agregar&quot; para crear uno</p>
+        <div className="text-center py-12 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl border-2 border-dashed border-yellow-200">
+          <div className="max-w-md mx-auto">
+            <div className="text-6xl mb-4">💸</div>
+            <h3 className="text-xl font-bold text-[#222222] mb-3">
+              ¡Oportunidad de Oro para Más Ganancias!
+            </h3>
+            <p className="text-[#666666] mb-4 leading-relaxed">
+              Cada ajuste de precio que configures es una oportunidad para aumentar tus márgenes de ganancia.
+              ¡No dejes dinero sobre la mesa!
+            </p>
+            <div className="bg-white p-4 rounded-lg border border-yellow-200 mb-4">
+              <p className="text-sm text-[#666666] mb-2">
+                <strong>Ejemplo real:</strong>
+              </p>
+              <div className="text-left">
+                <p className="text-sm text-[#222222]">Producto: $100 (costo)</p>
+                <p className="text-sm font-bold text-green-600">Con 35% markup: $135 (venta)</p>
+                <p className="text-sm font-bold text-blue-600">¡Ganancia extra: $35 por unidad!</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onAdd}
+              className="btn bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 border-none shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              <Plus className="w-4 h-4" />
+              ¡Crear mi primer ajuste! 🚀
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -60,16 +98,22 @@ const PriceAdjustments: React.FC<PriceAdjustmentsProps> = ({
               key={index}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white p-4 rounded-lg border border-[#e1e1e1] space-y-3"
+              className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-[#222222]">
-                  Ajuste #{index + 1}
-                </span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {index + 1}
+                  </div>
+                  <span className="font-semibold text-[#222222] text-lg">
+                    Ajuste de Precio #{index + 1}
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => onRemove(index)}
-                  className="btn btn-sm btn-circle btn-ghost text-red-600 hover:bg-red-100"
+                  className="btn btn-sm btn-circle btn-ghost text-red-500 hover:bg-red-100 hover:text-red-600 transition-colors"
+                  title="Eliminar ajuste"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
@@ -78,14 +122,14 @@ const PriceAdjustments: React.FC<PriceAdjustmentsProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {/* Selector de Categoría */}
                 <div>
-                  <label className="block text-sm font-medium text-[#222222] mb-1">
-                    Categoría
+                  <label className="flex items-center gap-2 text-sm font-semibold text-[#222222] mb-2">
+                    <span className="text-lg">👥</span>
+                    Categoría de Clientes
                   </label>
                   <select
                     value={adjustment.categoryId || ''}
                     onChange={(e) => onUpdate(index, 'categoryId', e.target.value)}
-                    disabled={!!adjustment.subcategoryId}
-                    className="select select-bordered w-full text-sm"
+                    className="select select-bordered w-full text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                   >
                     <option value="">Seleccionar categoría</option>
                     {categories.map((category) => (
@@ -98,14 +142,14 @@ const PriceAdjustments: React.FC<PriceAdjustmentsProps> = ({
 
                 {/* Selector de Subcategoría */}
                 <div>
-                  <label className="block text-sm font-medium text-[#222222] mb-1">
-                    Subcategoría
+                  <label className="flex items-center gap-2 text-sm font-semibold text-[#222222] mb-2">
+                    <span className="text-lg">📦</span>
+                    Tipo de Producto
                   </label>
                   <select
                     value={adjustment.subcategoryId || ''}
                     onChange={(e) => onUpdate(index, 'subcategoryId', e.target.value)}
-                    disabled={!!adjustment.categoryId}
-                    className="select select-bordered w-full text-sm"
+                    className="select select-bordered w-full text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                   >
                     <option value="">Seleccionar subcategoría</option>
                     {subcategories.map((subcategory) => (
@@ -118,7 +162,8 @@ const PriceAdjustments: React.FC<PriceAdjustmentsProps> = ({
 
                 {/* Input de Porcentaje */}
                 <div>
-                  <label className="block text-sm font-medium text-[#222222] mb-1">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-[#222222] mb-2">
+                    <span className="text-lg">📈</span>
                     Incremento (%)
                   </label>
                   <input
@@ -134,28 +179,77 @@ const PriceAdjustments: React.FC<PriceAdjustmentsProps> = ({
                     min="0"
                     max="1000"
                     step="0.1"
-                    className="input input-bordered w-full text-sm"
-                    placeholder="35"
+                    className="input input-bordered w-full text-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                    placeholder="Ej: 35"
                   />
                 </div>
               </div>
 
               {/* Preview del cálculo */}
               {adjustment.percentageIncrease > 0 && (
-                <div className="bg-blue-50 p-2 rounded text-sm">
-                  <span className="text-blue-800">
-                    <strong>Ejemplo:</strong> $100 USD → $
-                    {(100 * (1 + adjustment.percentageIncrease / 100)).toFixed(2)} USD
-                  </span>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-green-800">
+                      <span className="text-lg">💰</span>
+                      <span className="font-semibold">¡Excelente cálculo!</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-green-700">Precio base</div>
+                      <div className="font-bold text-green-800">$100 USD</div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded border border-green-200 mb-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-[#222222]">Con {adjustment.percentageIncrease}% markup:</span>
+                      <span className="font-bold text-green-600 text-lg">
+                        ${(100 * (1 + adjustment.percentageIncrease / 100)).toFixed(2)} USD
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-green-100 p-2 rounded">
+                    <div className="flex justify-between items-center text-green-800">
+                      <span className="text-sm font-semibold">¡Ganancia extra por unidad!</span>
+                      <span className="font-bold text-lg">
+                        +${(100 * (adjustment.percentageIncrease / 100)).toFixed(2)} USD
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Validación visual */}
               {!adjustment.categoryId && !adjustment.subcategoryId && (
-                <div className="bg-yellow-50 p-2 rounded text-sm">
-                  <span className="text-yellow-800">
-                    ⚠️ Selecciona una categoría o subcategoría
-                  </span>
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-lg border border-yellow-200">
+                  <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                    <span className="text-lg">⚠️</span>
+                    <span className="font-medium">
+                      ¡Especifica a qué productos aplicar este ajuste!
+                    </span>
+                  </div>
+                  <p className="text-sm text-yellow-700">
+                    Selecciona una categoría, subcategoría, o ambas para maximizar tus ganancias.
+                    <span className="font-bold"> ¡Más específico = Más ganancias!</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Información de prioridad cuando ambos están seleccionados */}
+              {adjustment.categoryId && adjustment.subcategoryId && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 text-blue-800 mb-2">
+                    <span className="text-lg">🎯</span>
+                    <span className="font-semibold">
+                      ¡Ajuste Ultra Preciso Activado!
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-700 mb-2">
+                    Este incremento se aplicará <strong>SOLO</strong> a productos que pertenezcan exactamente a esta categoría Y subcategoría.
+                  </p>
+                  <div className="bg-blue-100 p-2 rounded text-xs text-blue-800">
+                    💡 <strong>Máxima precisión = Máximas ganancias</strong>
+                  </div>
                 </div>
               )}
             </motion.div>

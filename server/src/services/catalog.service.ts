@@ -1,6 +1,8 @@
+// src/services/catalog.service.ts
+
 import path from 'path';
 import fs from 'fs';
-import { FilterQuery } from 'mongoose';
+import { FilterQuery, Types } from 'mongoose';
 
 import Category from '@models/Category';
 import Subcategory from '@models/Subcategory';
@@ -23,87 +25,140 @@ import logger from '@config/logger';
 import { generateCatalogPDF } from '@utils/catalogPdfGenerator';
 import env from '@config/env';
 import transporter from '@config/nodemailer.config';
+import { IProductDocument } from '@models/Product';
+import { IProductVariantDocument } from '@models/ProductVariant';
+import { ICategoryDocument } from '@models/Category';
+import { ISubcategoryDocument } from '@models/Subcategory';
 
 export class CatalogService {
   /**
-   * Calcula el precio ajustado según los ajustes de precio configurados
+   * Calcula el precio ajustado según los ajustes de precio configurados.
+   * Prioridad: subcategoría específica > categoría específica > subcategoría sola > categoría sola
    */
   private calculateAdjustedPrice(
     originalPrice: number,
     categoryId: string,
     subcategoryId: string,
-    priceAdjustments: PriceAdjustmentDto[],
+    priceAdjustments: PriceAdjustmentDto[] = [],
   ): number {
-    if (!priceAdjustments || priceAdjustments.length === 0) {
-      return originalPrice;
-    }
+    if (!priceAdjustments || priceAdjustments.length === 0) return originalPrice;
 
-    // Buscar ajuste específico por subcategoría (más específico)
-    const subcategoryAdjustment = priceAdjustments.find(
-      (adjustment) => adjustment.subcategoryId?.toString() === subcategoryId,
+    // 1. Buscar ajuste específico para esta categoría Y subcategoría
+    const specificAdj = priceAdjustments.find(
+      (a) =>
+        a.categoryId &&
+        a.subcategoryId &&
+        a.categoryId.toString() === categoryId &&
+        a.subcategoryId.toString() === subcategoryId,
     );
-
-    if (subcategoryAdjustment) {
-      return originalPrice * (1 + subcategoryAdjustment.percentageIncrease / 100);
+    if (specificAdj) {
+      return originalPrice * (1 + specificAdj.percentageIncrease / 100);
     }
 
-    // Buscar ajuste por categoría (menos específico)
-    const categoryAdjustment = priceAdjustments.find((adjustment) => adjustment.categoryId?.toString() === categoryId);
+    // 2. Buscar ajuste solo por subcategoría (cualquier categoría)
+    const subAdj = priceAdjustments.find(
+      (a) => a.subcategoryId && !a.categoryId && a.subcategoryId.toString() === subcategoryId,
+    );
+    if (subAdj) {
+      return originalPrice * (1 + subAdj.percentageIncrease / 100);
+    }
 
-    if (categoryAdjustment) {
-      return originalPrice * (1 + categoryAdjustment.percentageIncrease / 100);
+    // 3. Buscar ajuste solo por categoría (cualquier subcategoría)
+    const catAdj = priceAdjustments.find(
+      (a) => a.categoryId && !a.subcategoryId && a.categoryId.toString() === categoryId,
+    );
+    if (catAdj) {
+      return originalPrice * (1 + catAdj.percentageIncrease / 100);
     }
 
     return originalPrice;
   }
 
   /**
-   * Convierte una URL relativa a una URL absoluta con el SERVER_URL
+   * Convierte ruta/imagen relativa a URL absoluta usando SERVER_URL.
+   * Devuelve placeholder si no hay imagen.
    */
-  private getAbsoluteImageUrl(imageUrl: string): string {
+  private getAbsoluteImageUrl(imageUrl?: string): string {
     if (!imageUrl) {
       return 'https://via.placeholder.com/300x200/f3f4f6/6b7280?text=Sin+Imagen';
     }
-
-    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-      return imageUrl; // Ya es una URL absoluta
-    }
-
-    // Si la URL empieza con /, la agregamos al SERVER_URL
-    if (imageUrl.startsWith('/')) {
-      return `${env.SERVER_URL}${imageUrl}`;
-    }
-
-    // Si no empieza con /, asumimos que es una ruta relativa a uploads
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) return imageUrl;
+    if (imageUrl.startsWith('/')) return `${env.SERVER_URL}${imageUrl}`;
     return `${env.SERVER_URL}/uploads/${imageUrl}`;
   }
 
   /**
-   * Genera un catálogo en PDF con las opciones especificadas y lo envía por email
+   * Mapea una variante a CatalogProductVariantDto (aplica precio ajustado).
+   */
+  private mapVariant(
+    variant: IProductVariantDocument, // Cambiado de any a IProductVariantDocument
+    categoryId: string,
+    subcategoryId: string,
+    priceAdjustments: PriceAdjustmentDto[] = [],
+  ): CatalogProductVariantDto {
+    const adjustedPrice = this.calculateAdjustedPrice(variant.priceUSD, categoryId, subcategoryId, priceAdjustments);
+
+    return {
+      id: variant._id.toString(),
+      color: variant.color,
+      stock: variant.stock ?? 0,
+      thumbnail: this.getAbsoluteImageUrl(variant.thumbnail),
+      images: variant.images.map((i) => this.getAbsoluteImageUrl(i)),
+      priceUSD: adjustedPrice,
+    };
+  }
+
+  /**
+   * Mapea producto y sus variantes a CatalogProductDto.
+   */
+  private mapProduct(
+    product: IProductDocument, // Cambiado de any a IProductDocument
+    variantsForProduct: IProductVariantDocument[],
+    categoryId: string,
+    subcategoryId: string,
+    priceAdjustments: PriceAdjustmentDto[] = [],
+  ): CatalogProductDto {
+    const mappedVariants = variantsForProduct.map((v) =>
+      this.mapVariant(v, categoryId, subcategoryId, priceAdjustments),
+    );
+
+    return {
+      id: product._id.toString(),
+      slug: product.slug,
+      thumbnail: this.getAbsoluteImageUrl(product.thumbnail),
+      primaryImage: this.getAbsoluteImageUrl(product.primaryImage),
+      productModel: product.productModel,
+      sku: product.sku,
+      ...(product.size ? { size: product.size } : {}),
+      variants: mappedVariants,
+    };
+  }
+
+  /**
+   * Genera un catálogo (PDF) y lo envia por email. Mantiene el comportamiento
+   * de tu método original (guardado en uploads, adjunto por email).
    */
   public async generateCatalog(
     catalogData: GenerateCatalogRequestDto,
     logoFile?: Express.Multer.File,
   ): Promise<GenerateCatalogResponseDto> {
     try {
-      // Validar que al menos se especifique una opción de filtrado
+      // Requerimos al menos una categoría o subcategoría
       if (!catalogData.categories?.length && !catalogData.subcategories?.length) {
         throw new AppError('Debe especificar al menos una categoría o subcategoría', 400);
       }
 
-      // Validar email
       if (!catalogData.email) {
         throw new AppError('El email es requerido', 400);
       }
 
       // Procesar logo
-      let logoUrl = 'https://i.imgur.com/nzdfwS7.png'; // Logo por defecto
+      let logoUrl = 'https://i.imgur.com/nzdfwS7.png';
       if (logoFile) {
-        // Construir URL del logo subido
         logoUrl = this.getAbsoluteImageUrl(`/uploads/${logoFile.filename}`);
       }
 
-      // Obtener datos del catálogo
+      // Obtener datos del catálogo (optimizado)
       const catalogInfo = await this.getCatalogData(catalogData);
 
       const fullCatalogData: CatalogDataDto = {
@@ -122,26 +177,22 @@ export class CatalogService {
         ...catalogInfo,
       };
 
-      // Generar PDF
       const pdfBuffer = await generateCatalogPDF(fullCatalogData);
 
-      // Guardar PDF en uploads (misma carpeta que usa multer y app.ts)
+      // Guardar en uploads
       const uploadsPath = path.join(process.cwd(), 'uploads');
-      if (!fs.existsSync(uploadsPath)) {
-        fs.mkdirSync(uploadsPath, { recursive: true });
-      }
+      if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath, { recursive: true });
 
       const fileName = `catalog-${Date.now()}.pdf`;
       const filePath = path.join(uploadsPath, fileName);
-
       fs.writeFileSync(filePath, pdfBuffer);
 
-      // Enviar catálogo por email usando la plantilla Handlebars
+      // Enviar email con adjunto
       await transporter.sendMail({
         from: `Todo Armazones Argentina <${env.EMAIL_USER}>`,
         to: catalogData.email,
         subject: 'Tu catálogo de productos está listo',
-        // @ts-expect-error - nodemailer with handlebars template property not typed
+        // @ts-expect-error plantilla handlebars en transporter
         template: 'catalog-email',
         context: {
           logoUrl,
@@ -180,41 +231,116 @@ export class CatalogService {
   }
 
   /**
-   * Obtiene los datos estructurados del catálogo según los filtros especificados
+   * Obtiene datos del catálogo de manera optimizada:
+   * - 1 query para categories
+   * - 1 query para subcategories
+   * - 1 query para products
+   * - 1 query para productVariants
+   *
+   * Luego arma la jerarquía en memoria.
    */
   private async getCatalogData(catalogData: GenerateCatalogRequestDto): Promise<{
     categories: CatalogCategoryDto[];
     totalProducts: number;
     totalVariants: number;
   }> {
-    const categoryFilter: FilterQuery<typeof Category> = {};
-    const subcategoryFilter: FilterQuery<typeof Subcategory> = {};
-    const productFilter: FilterQuery<typeof Product> = {};
+    // Preparar filtros con tipos específicos
+    const categoryFilter: FilterQuery<ICategoryDocument> = {};
+    const subcategoryFilter: FilterQuery<ISubcategoryDocument> = {};
+    const productFilter: FilterQuery<IProductDocument> = {};
 
-    // Aplicar filtros según los parámetros
-    if (catalogData.categories?.length) {
-      categoryFilter._id = { $in: catalogData.categories };
+    // Si se especifican categorías
+    const categoryIds = (catalogData.categories ?? []).map((c) => (typeof c === 'string' ? new Types.ObjectId(c) : c));
+    if (categoryIds.length > 0) {
+      categoryFilter._id = { $in: categoryIds };
     }
 
-    if (catalogData.subcategories?.length) {
-      subcategoryFilter._id = { $in: catalogData.subcategories };
-      // Si se especifican subcategorías, los productos deben pertenecer a esas subcategorías
-      productFilter.subcategory = { $in: catalogData.subcategories };
+    // Si se especifican subcategorías
+    const subcategoryIds = (catalogData.subcategories ?? []).map((s) =>
+      typeof s === 'string' ? new Types.ObjectId(s) : s,
+    );
+    if (subcategoryIds.length > 0) {
+      subcategoryFilter._id = { $in: subcategoryIds };
     }
 
-    if (catalogData.categories?.length && !catalogData.subcategories?.length) {
-      // Si solo se especifican categorías, los productos deben pertenecer a esas categorías
-      productFilter.category = { $in: catalogData.categories };
+    // Asegurarse que las subcategorías pertenezcan a las categorías seleccionadas si ambas vienen
+    if (categoryIds.length > 0) {
+      subcategoryFilter.category = { $in: categoryIds };
     }
 
-    // Obtener categorías
-    const categories = await Category.find(categoryFilter).lean();
+    // Para productos: prioridad a subcategorías si vienen, si no a categorías
+    if (subcategoryIds.length > 0) {
+      productFilter.subcategory = { $in: subcategoryIds };
+    } else if (categoryIds.length > 0) {
+      productFilter.category = { $in: categoryIds };
+    }
 
+    // --> Queries optimizadas (4 queries)
+    const [categories, subcategories, products] = await Promise.all([
+      Category.find(categoryFilter).lean(),
+      Subcategory.find(subcategoryFilter).lean(),
+      Product.find(productFilter).lean(),
+    ]);
+
+    // Si no hay productos por query anterior, intentamos obtener products restringidos por relationships:
+    // (ya hicimos productFilter; si user pasó subcategories o categories, productFilter los cubre)
+    // Obtener products (si no fue resuelto arriba)
+    let productsList = products as IProductDocument[];
+
+    // Si productFilter fue vacío (posible), y el usuario especificó subcategories o categories,
+    // nos aseguramos de buscar productos correspondientes:
+    if ((!productsList || productsList.length === 0) && (subcategoryIds.length > 0 || categoryIds.length > 0)) {
+      const fallbackProductFilter: FilterQuery<IProductDocument> = {};
+      if (subcategoryIds.length > 0) fallbackProductFilter.subcategory = { $in: subcategoryIds };
+      else if (categoryIds.length > 0) fallbackProductFilter.category = { $in: categoryIds };
+      productsList = (await Product.find(fallbackProductFilter).lean()) as IProductDocument[];
+    }
+
+    // Si no hay productsList (posible si productFilter vacío y no hay categories/subcategories),
+    // entonces no hay nada que devolver.
+    if (!productsList || productsList.length === 0) {
+      return {
+        categories: [],
+        totalProducts: 0,
+        totalVariants: 0,
+      };
+    }
+
+    // Ahora obtenemos variantes para todos los productos encontrados
+    const productIds = productsList.map((p) => p._id);
+    const variantsList = (await ProductVariant.find({
+      product: { $in: productIds },
+    }).lean()) as IProductVariantDocument[];
+
+    // Construir mapas para ensamblar la jerarquía en memoria (evitamos loops costosos)
+    const subcategoriesById = new Map<string, ISubcategoryDocument>();
+    for (const sc of subcategories as ISubcategoryDocument[]) {
+      subcategoriesById.set(sc._id.toString(), sc);
+    }
+
+    const productsBySubcategory = new Map<string, IProductDocument[]>();
+    for (const p of productsList) {
+      const subId = p.subcategory?.toString();
+      if (!subId) continue;
+      if (!productsBySubcategory.has(subId)) productsBySubcategory.set(subId, []);
+      productsBySubcategory.get(subId)!.push(p);
+    }
+
+    const variantsByProduct = new Map<string, IProductVariantDocument[]>();
+    for (const v of variantsList) {
+      const prodId = v.product?.toString();
+      if (!prodId) continue;
+      if (!variantsByProduct.has(prodId)) variantsByProduct.set(prodId, []);
+      variantsByProduct.get(prodId)!.push(v);
+    }
+
+    // Ahora armar DTOs: por cada categoría, sus subcategories y productos/variants
     const catalogCategories: CatalogCategoryDto[] = [];
     let totalProducts = 0;
     let totalVariants = 0;
 
-    for (const category of categories) {
+    // Convertir categories (puede que subcategories list esté vacía si no hay coincidencias)
+    for (const category of categories as ICategoryDocument[]) {
       const categoryDto: CatalogCategoryDto = {
         id: category._id.toString(),
         slug: category.slug,
@@ -225,15 +351,59 @@ export class CatalogService {
         subcategories: [],
       };
 
-      // Obtener subcategorías de esta categoría
-      const subcategoryQuery: FilterQuery<typeof Subcategory> = { category: category._id };
-      if (catalogData.subcategories?.length) {
-        subcategoryQuery._id = { $in: catalogData.subcategories };
+      // Encontrar subcategorías que pertenezcan a esta categoría y que cumplan con filtros
+      // (subcategoriesById provee las subcategorías filtradas inicialmente por subcategoryFilter)
+      const subcatsForCategory: ISubcategoryDocument[] = [];
+      // Si no hubo subcategories en la consulta (porque user no pidió subcategories),
+      // debemos buscar las subcategorías relacionadas a la categoría entre las subcategorías de products (fallback).
+      for (const scEntry of subcategoriesById.values()) {
+        // subcategory.schema tiene campo category que es array
+        const scCategoryField = scEntry.category;
+        const scBelongsToCategory = Array.isArray(scCategoryField)
+          ? scCategoryField.map((c: Types.ObjectId) => c.toString()).includes(category._id.toString())
+          : (scCategoryField as Types.ObjectId)?.toString() === category._id.toString();
+
+        if (scBelongsToCategory) subcatsForCategory.push(scEntry);
       }
 
-      const subcategories = await Subcategory.find(subcategoryQuery).lean();
+      // Si no se filtraron subcategories en la consulta (user no las pasó) -> intentar inferir
+      // por los productos encontrados (productos tienen subcategory field)
+      if (subcatsForCategory.length === 0) {
+        // reunir subcategory ids presentes en productsList que referencian esta category
+        const subIdsFromProducts = new Set<string>();
+        for (const p of productsList) {
+          // verificar que el producto pertenezca también a esta categoría (product.category es array)
+          const prodCategories = Array.isArray(p.category) ? p.category.map((c: Types.ObjectId) => c.toString()) : [];
+          if (prodCategories.includes(category._id.toString())) {
+            if (p.subcategory) subIdsFromProducts.add(p.subcategory.toString());
+          }
+        }
+        // agregar subcategorías correspondientes a esos ids (si existen en DB)
+        for (const id of subIdsFromProducts) {
+          const sc = subcategoriesById.get(id);
+          if (sc) subcatsForCategory.push(sc);
+          else {
+            // Si no está en subcategoriesById (porque user no pasó subcategories y no se consultaron),
+            // intentar buscar en DB a la subcategoría por id
+            const scFromDb = (await Subcategory.findById(id).lean()) as ISubcategoryDocument | null;
+            if (scFromDb) {
+              subcatsForCategory.push(scFromDb);
+              subcategoriesById.set(scFromDb._id.toString(), scFromDb);
+            }
+          }
+        }
+      }
 
-      for (const subcategory of subcategories) {
+      // Para cada subcategoría de esta categoría armar productos
+      for (const subcategory of subcatsForCategory) {
+        // Si el usuario pidió subcategories específicas y esta subcategory no está en ese set => saltar
+        if (
+          subcategoryIds.length > 0 &&
+          !subcategoryIds.map((s) => s.toString()).includes(subcategory._id.toString())
+        ) {
+          continue;
+        }
+
         const subcategoryDto: CatalogSubcategoryDto = {
           id: subcategory._id.toString(),
           slug: subcategory.slug,
@@ -244,64 +414,45 @@ export class CatalogService {
           products: [],
         };
 
-        // Obtener productos de esta subcategoría y categoría
-        const productQuery: FilterQuery<typeof Product> = {
-          subcategory: subcategory._id,
-          category: category._id,
-        };
+        // Obtener productos para esta subcategory (según productsBySubcategory)
+        const productsForSub = productsBySubcategory.get(subcategory._id.toString()) ?? [];
 
-        const products = await Product.find(productQuery).lean();
+        for (const product of productsForSub) {
+          // Verificar que el producto pertenezca a la categoría actual (product.category es array)
+          const prodCategories = Array.isArray(product.category)
+            ? product.category.map((c: Types.ObjectId) => c.toString())
+            : product.category
+              ? [(product.category as Types.ObjectId).toString()]
+              : [];
 
-        for (const product of products) {
-          const productDto: CatalogProductDto = {
-            id: product._id.toString(),
-            slug: product.slug,
-            thumbnail: this.getAbsoluteImageUrl(product.thumbnail),
-            primaryImage: this.getAbsoluteImageUrl(product.primaryImage),
-            productModel: product.productModel,
-            sku: product.sku,
-            ...(product.size && { size: product.size }),
-            variants: [],
-          };
-
-          // Obtener variantes del producto
-          const variants = await ProductVariant.find({
-            product: product._id,
-          }).lean();
-
-          for (const variant of variants) {
-            // Calcular precio ajustado
-            const adjustedPrice = this.calculateAdjustedPrice(
-              variant.priceUSD,
-              category._id.toString(),
-              subcategory._id.toString(),
-              catalogData.priceAdjustments || [],
-            );
-
-            const variantDto: CatalogProductVariantDto = {
-              id: variant._id.toString(),
-              color: variant.color,
-              stock: variant.stock,
-              thumbnail: this.getAbsoluteImageUrl(variant.thumbnail),
-              images: variant.images.map((img) => this.getAbsoluteImageUrl(img)),
-              priceUSD: adjustedPrice,
-            };
-
-            productDto.variants.push(variantDto);
-            totalVariants++;
+          if (!prodCategories.includes(category._id.toString())) {
+            // Si no pertenece a esta categoría, lo saltamos
+            continue;
           }
+
+          const productVariants = variantsByProduct.get(product._id.toString()) ?? [];
+
+          // Construir DTO solo si tiene variantes (si no, lo ignoro)
+          if (productVariants.length === 0) continue;
+
+          const productDto = this.mapProduct(
+            product,
+            productVariants,
+            category._id.toString(),
+            subcategory._id.toString(),
+            catalogData.priceAdjustments ?? [],
+          );
 
           subcategoryDto.products.push(productDto);
           totalProducts++;
+          totalVariants += productDto.variants.length;
         }
 
-        // Solo incluir subcategoría si tiene productos
         if (subcategoryDto.products.length > 0) {
           categoryDto.subcategories.push(subcategoryDto);
         }
       }
 
-      // Solo incluir categoría si tiene subcategorías con productos
       if (categoryDto.subcategories.length > 0) {
         catalogCategories.push(categoryDto);
       }
@@ -314,3 +465,5 @@ export class CatalogService {
     };
   }
 }
+
+export default CatalogService;

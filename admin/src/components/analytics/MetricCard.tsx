@@ -8,7 +8,7 @@ interface MetricCardProps {
   changeLabel?: string;
   icon?: React.ReactNode;
   isLoading?: boolean;
-  color?: 'blue' | 'green' | 'purple' | 'orange' | 'red';
+  color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'emerald';
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
@@ -46,6 +46,11 @@ const MetricCard: React.FC<MetricCardProps> = ({
         bg: 'bg-red-50',
         icon: 'bg-red-100 text-red-600',
         text: 'text-red-600',
+      },
+      emerald: {
+        bg: 'bg-emerald-50',
+        icon: 'bg-emerald-100 text-emerald-600',
+        text: 'text-emerald-600',
       },
     };
     return colors[colorName as keyof typeof colors] || colors.blue;

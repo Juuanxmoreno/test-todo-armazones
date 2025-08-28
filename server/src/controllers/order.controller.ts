@@ -52,6 +52,7 @@ export class OrderController {
           changes: error.changes,
           cart: error.cart,
         });
+        return; // IMPORTANTE: retornar aquí para evitar continuar
       }
 
       // Envolver errores desconocidos en AppError para mantener consistencia
@@ -669,6 +670,109 @@ export class OrderController {
       if (!(error instanceof AppError)) {
         const wrappedError = new AppError(
           'Error inesperado al verificar elegibilidad de reembolso',
+          500,
+          'error',
+          false,
+          {
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+        return next(wrappedError);
+      }
+
+      return next(error);
+    }
+  };
+
+  /**
+   * Cancela un reembolso de una orden
+   */
+  public cancelRefund = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderId } = req.params;
+
+      if (!orderId) {
+        throw new AppError('Falta el parámetro orderId', 400, 'fail');
+      }
+
+      // Obtener el userId de la sesión para trazabilidad
+      const userId = getSessionUserId(req.session);
+
+      const result = await this.orderService.cancelRefund(new Types.ObjectId(orderId), userId);
+
+      if (result.success) {
+        logger.info('Reembolso cancelado exitosamente', {
+          orderId,
+          cancelledRefundAmount: result.refundCancellationDetails?.cancelledRefundAmount,
+          cancelledBy: userId.toString(),
+        });
+
+        const response: ApiResponse<typeof result> = {
+          status: 'success',
+          message: result.message,
+          data: result,
+        };
+
+        res.status(200).json(response);
+      } else {
+        // En caso de error controlado del servicio
+        const response: ApiResponse<typeof result> = {
+          status: 'fail',
+          message: result.message,
+          data: result,
+        };
+
+        res.status(400).json(response);
+      }
+    } catch (error) {
+      logger.error('Error al cancelar reembolso', {
+        error,
+        orderId: req.params?.orderId,
+        userId: req.session?.user?._id,
+      });
+
+      if (!(error instanceof AppError)) {
+        const wrappedError = new AppError('Error inesperado al cancelar el reembolso', 500, 'error', false, {
+          cause: error instanceof Error ? error.message : String(error),
+        });
+        return next(wrappedError);
+      }
+
+      return next(error);
+    }
+  };
+
+  /**
+   * Verifica si una orden puede cancelar su reembolso
+   */
+  public canCancelRefund = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { orderId } = req.params;
+
+      if (!orderId) {
+        throw new AppError('Falta el parámetro orderId', 400, 'fail');
+      }
+
+      const eligibility = await this.orderService.canCancelRefund(new Types.ObjectId(orderId));
+
+      const response: ApiResponse<typeof eligibility> = {
+        status: 'success',
+        message: eligibility.canCancelRefund
+          ? 'El reembolso de la orden puede ser cancelado'
+          : 'El reembolso de la orden no puede ser cancelado',
+        data: eligibility,
+      };
+
+      res.status(200).json(response);
+    } catch (error) {
+      logger.error('Error al verificar elegibilidad de cancelación de reembolso', {
+        error,
+        orderId: req.params?.orderId,
+      });
+
+      if (!(error instanceof AppError)) {
+        const wrappedError = new AppError(
+          'Error inesperado al verificar elegibilidad de cancelación de reembolso',
           500,
           'error',
           false,

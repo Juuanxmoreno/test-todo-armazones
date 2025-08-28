@@ -49,20 +49,21 @@ export interface IAnalyticsResult<T extends IAnalyticsMetrics = IAnalyticsMetric
 // Métricas específicas para órdenes
 export interface IOrderAnalyticsMetrics extends IAnalyticsMetrics {
   gross: number; // Total de ventas brutas (totalAmount)
-  net: number; // Total de ventas netas (gross - costos)
+  net: number; // Total margen de contribución (totalContributionMarginUSD)
   count: number; // Número de órdenes
   items: number; // Número total de items vendidos
   averageGrossDaily: number; // Promedio diario de ventas brutas
-  averageNetDaily: number; // Promedio diario de ventas netas
+  averageNetDaily: number; // Promedio diario de margen de contribución
 }
 
 // Interface para datos agregados de órdenes desde MongoDB
 export interface IOrderAggregationResult {
   _id: Record<string, unknown> | null;
   totalAmount: number;
-  totalCost: number;
+  totalCogsUSD: number; // Usar campo pre-calculado
+  totalContributionMarginUSD: number; // Usar campo pre-calculado
   orderCount: number;
-  itemCount: number;
+  totalItems: number; // Total de items usando $size
   date?: Date; // Para agregaciones con breakdown temporal
 }
 
@@ -70,9 +71,10 @@ export interface IOrderAggregationResult {
 export interface IOrderBreakdownAggregationResult {
   _id: string; // Fecha agrupada como string (ej: "2025-08-07", "2025-W32", "2025-08")
   totalAmount: number;
-  totalCost: number;
+  totalCogsUSD: number; // Usar campo pre-calculado
+  totalContributionMarginUSD: number; // Usar campo pre-calculado
   orderCount: number;
-  itemCount: number;
+  totalItems: number; // Total de items usando $size
 }
 
 export interface IUserAnalyticsMetrics extends IAnalyticsMetrics {

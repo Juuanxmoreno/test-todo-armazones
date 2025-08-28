@@ -23,10 +23,10 @@ const MetricSelector: React.FC<MetricSelectorProps> = ({
     },
     {
       key: 'net' as keyof OrderAnalyticsMetricsDto,
-      label: 'Ventas Netas',
+      label: 'Margen de Contribución',
       icon: TrendingUp,
       color: 'green',
-      description: 'Ingresos después de costos',
+      description: 'Contribución total al beneficio',
     },
     {
       key: 'count' as keyof OrderAnalyticsMetricsDto,
@@ -56,6 +56,11 @@ const MetricSelector: React.FC<MetricSelectorProps> = ({
         unselected: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
         icon: isSelected ? 'text-white' : 'text-green-600',
       },
+      emerald: {
+        selected: 'bg-emerald-600 text-white border-emerald-600',
+        unselected: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100',
+        icon: isSelected ? 'text-white' : 'text-emerald-600',
+      },
       purple: {
         selected: 'bg-purple-600 text-white border-purple-600',
         unselected: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
@@ -77,7 +82,7 @@ const MetricSelector: React.FC<MetricSelectorProps> = ({
         Métrica del Gráfico
       </h3>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {metricOptions.map((option) => {
           const IconComponent = option.icon;
           const isSelected = selectedMetric === option.key;

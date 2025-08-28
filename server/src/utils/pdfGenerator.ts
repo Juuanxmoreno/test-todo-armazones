@@ -73,7 +73,6 @@ export async function generateOrderPDF(orderData: OrderResponseDto): Promise<Buf
     ...item,
     priceUSDAtPurchase: formatCurrency(item.priceUSDAtPurchase, 'en-US', 'USD'),
     subTotal: formatCurrency(item.subTotal, 'en-US', 'USD'),
-    gainUSD: formatCurrency(item.gainUSD, 'en-US', 'USD'),
     productVariant: {
       ...item.productVariant,
       colorName: item.productVariant.color.name, // Extraemos específicamente color.name
@@ -85,7 +84,6 @@ export async function generateOrderPDF(orderData: OrderResponseDto): Promise<Buf
 
   const totalAmountFormatted = formatCurrency(orderData.totalAmount, 'en-US', 'USD');
   const totalAmountARSFormatted = formatCurrency(orderData.totalAmountARS, 'es-AR', 'ARS');
-  const totalGainUSDFormatted = formatCurrency(orderData.totalGainUSD, 'en-US', 'USD');
   const bankTransferExpenseFormatted =
     orderData.bankTransferExpense !== undefined
       ? formatCurrency(orderData.bankTransferExpense, 'en-US', 'USD')
@@ -101,7 +99,6 @@ export async function generateOrderPDF(orderData: OrderResponseDto): Promise<Buf
     subTotal: subTotalAmountFormatted,
     totalAmount: totalAmountFormatted,
     totalAmountARS: totalAmountARSFormatted,
-    totalGainUSD: totalGainUSDFormatted,
     isParcelCompany,
     isMotorcycle,
     showBankTransferExpense,

@@ -82,5 +82,14 @@ export const GenerateCatalogRequestSchema = {
           path: ['categories'], // Indica dónde ocurrió el error
         });
       }
+
+      // Validación adicional: no se permite que una categoría y subcategoría sean ambas nulas
+      if (data.priceAdjustments.some((adjustment) => !adjustment.categoryId && !adjustment.subcategoryId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Cada ajuste de precio debe tener al menos una categoría o subcategoría',
+          path: ['priceAdjustments'],
+        });
+      }
     }),
 };

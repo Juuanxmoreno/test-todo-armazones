@@ -27,7 +27,8 @@ const orderItemSchema = new Schema<IOrderItem>(
     subTotal: { type: Number, required: true },
     costUSDAtPurchase: { type: Number, required: true },
     priceUSDAtPurchase: { type: Number, required: true },
-    gainUSD: { type: Number, required: true },
+    contributionMarginUSD: { type: Number, required: true },
+    cogsUSD: { type: Number, required: true }, // Cost of Goods Sold
   },
   {
     _id: false,
@@ -109,7 +110,8 @@ const orderSchema = new Schema<IOrderDocument>(
     bankTransferExpense: { type: Number, required: false },
     totalAmount: { type: Number, required: true, default: 0 },
     totalAmountARS: { type: Number, required: false },
-    totalGainUSD: { type: Number, required: true, default: 0 },
+    totalContributionMarginUSD: { type: Number, required: true, default: 0 },
+    totalCogsUSD: { type: Number, required: true, default: 0 }, // Total Cost of Goods Sold
     orderStatus: {
       type: String,
       enum: Object.values(OrderStatus),

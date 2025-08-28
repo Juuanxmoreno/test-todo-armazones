@@ -76,6 +76,7 @@ export class UserAnalyticsService extends BaseAnalyticsService<IUserAnalyticsMet
 
   /**
    * Implementación específica para calcular métricas totales de usuarios
+   * Usa campos pre-calculados del modelo Order para optimización de rendimiento
    */
   protected async calculateTotalMetrics(dateRange: IAnalyticsDateRange): Promise<IUserAnalyticsMetrics> {
     const matchStage: Record<string, unknown> = {
@@ -103,17 +104,17 @@ export class UserAnalyticsService extends BaseAnalyticsService<IUserAnalyticsMet
         $group: {
           _id: null,
           totalOrders: { $sum: 1 },
-          totalRevenue: { $sum: '$totalAmount' },
+          totalRevenue: { $sum: '$totalAmount' }, // Campo pre-calculado
         },
       });
     } else {
-      // Agregación para todos los usuarios (como estaba antes)
+      // Agregación para todos los usuarios usando campos pre-calculados
       pipeline.push(
         {
           $group: {
             _id: '$user', // Agrupa por usuario
             totalOrders: { $sum: 1 },
-            totalRevenue: { $sum: '$totalAmount' },
+            totalRevenue: { $sum: '$totalAmount' }, // Campo pre-calculado
           },
         },
         {
@@ -121,7 +122,7 @@ export class UserAnalyticsService extends BaseAnalyticsService<IUserAnalyticsMet
             _id: null,
             uniqueUsers: { $sum: 1 }, // Cuenta usuarios únicos
             totalOrders: { $sum: '$totalOrders' },
-            totalRevenue: { $sum: '$totalRevenue' },
+            totalRevenue: { $sum: '$totalRevenue' }, // Ya está pre-calculado por usuario
           },
         },
       );
@@ -158,6 +159,7 @@ export class UserAnalyticsService extends BaseAnalyticsService<IUserAnalyticsMet
 
   /**
    * Método optimizado para calcular breakdown temporal con una sola consulta de agregación
+   * Usa campos pre-calculados del modelo Order para máxima eficiencia
    */
   protected async calculateBreakdown(
     dateRange: IAnalyticsDateRange,
@@ -200,7 +202,7 @@ export class UserAnalyticsService extends BaseAnalyticsService<IUserAnalyticsMet
         $group: {
           _id: '$localDate',
           totalOrders: { $sum: 1 },
-          totalRevenue: { $sum: '$totalAmount' },
+          totalRevenue: { $sum: '$totalAmount' }, // Campo pre-calculado del modelo Order
           // Solo agregar uniqueUsers si no estamos filtrando por usuario específico
           ...(this.userId ? {} : { uniqueUsers: { $addToSet: '$user' } }), // Usuarios únicos en este período
         },

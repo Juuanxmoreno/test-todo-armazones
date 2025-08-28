@@ -147,6 +147,7 @@ const CheckoutPage = () => {
     console.log("================================");
 
     const result = await placeOrder(payload);
+    
     if (createOrder.fulfilled.match(result)) {
       // Reset cart and redirect to order received page with order id
       resetCart();

@@ -7,7 +7,8 @@ export interface IOrderItem {
   subTotal: number;
   costUSDAtPurchase: number;
   priceUSDAtPurchase: number;
-  gainUSD: number;
+  contributionMarginUSD: number;
+  cogsUSD: number; // Cost of Goods Sold = costUSDAtPurchase * quantity
 }
 
 export interface IRefund {
@@ -30,7 +31,8 @@ export interface IOrder {
   bankTransferExpense?: number;
   totalAmount: number;
   totalAmountARS?: number;
-  totalGainUSD: number;
+  totalContributionMarginUSD: number;
+  totalCogsUSD: number; // Total Cost of Goods Sold = suma de cogsUSD de todos los items
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;
   refund?: IRefund;

@@ -15,6 +15,8 @@ import {
   clearOrderById as clearOrderByIdAction,
   applyRefund,
   checkRefundEligibility,
+  cancelRefund,
+  checkRefundCancelEligibility,
   clearRefundState,
   CreateOrderAdminPayload,
 } from "@/redux/slices/orderSlice";
@@ -28,7 +30,9 @@ import type {
   OrderStatusUpdateResult,
   ApplyRefundPayload,
   ApplyRefundResponse,
-  RefundEligibilityResponse
+  RefundEligibilityResponse,
+  CancelRefundResponse,
+  RefundCancelEligibilityResponse
 } from "@/interfaces/order";
 import { OrderStatus } from "@/enums/order.enum";
 
@@ -50,6 +54,10 @@ const useOrders = () => {
   const refundError = useAppSelector((state) => state.orders.refundError);
   const refundEligibility = useAppSelector((state) => state.orders.refundEligibility);
   const refundEligibilityLoading = useAppSelector((state) => state.orders.refundEligibilityLoading);
+  const cancelRefundLoading = useAppSelector((state) => state.orders.cancelRefundLoading);
+  const cancelRefundError = useAppSelector((state) => state.orders.cancelRefundError);
+  const refundCancelEligibility = useAppSelector((state) => state.orders.refundCancelEligibility);
+  const refundCancelEligibilityLoading = useAppSelector((state) => state.orders.refundCancelEligibilityLoading);
   const getOrderById = useCallback(
     (orderId: string) => {
       dispatch(fetchOrderById(orderId));
@@ -193,6 +201,42 @@ const useOrders = () => {
     dispatch(clearRefundState());
   }, [dispatch]);
 
+  const cancelOrderRefund = useCallback(
+    (
+      orderId: string,
+      onSuccess?: (response: CancelRefundResponse) => void,
+      onError?: (err: unknown) => void
+    ) => {
+      dispatch(cancelRefund(orderId))
+        .unwrap()
+        .then((response) => {
+          if (onSuccess) onSuccess(response);
+        })
+        .catch((err) => {
+          if (onError) onError(err);
+        });
+    },
+    [dispatch]
+  );
+
+  const checkRefundCancelEligibilityData = useCallback(
+    (
+      orderId: string,
+      onSuccess?: (response: RefundCancelEligibilityResponse) => void,
+      onError?: (err: unknown) => void
+    ) => {
+      dispatch(checkRefundCancelEligibility(orderId))
+        .unwrap()
+        .then((response) => {
+          if (onSuccess) onSuccess(response);
+        })
+        .catch((err) => {
+          if (onError) onError(err);
+        });
+    },
+    [dispatch]
+  );
+
   return {
     orders,
     orderById,
@@ -208,6 +252,10 @@ const useOrders = () => {
     refundError,
     refundEligibility,
     refundEligibilityLoading,
+    cancelRefundLoading,
+    cancelRefundError,
+    refundCancelEligibility,
+    refundCancelEligibilityLoading,
     getOrders,
     getOrderById,
     updateOrderData,
@@ -220,6 +268,8 @@ const useOrders = () => {
     applyOrderRefund,
     checkOrderRefundEligibility,
     clearRefundInfo,
+    cancelOrderRefund,
+    checkRefundCancelEligibilityData,
     setFilter,
     clearOrders,
     createOrderAsAdmin: useCallback(

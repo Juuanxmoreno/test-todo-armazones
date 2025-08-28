@@ -71,7 +71,9 @@ import {
   ShippingAddress,
   ApplyRefundPayload,
   ApplyRefundResponse,
-  RefundEligibilityResponse
+  RefundEligibilityResponse,
+  CancelRefundResponse,
+  RefundCancelEligibilityResponse
 } from "@/interfaces/order";
 import { ApiResponse, getErrorMessage } from "@/types/api";
 import { OrderStatus } from "@/enums/order.enum";
@@ -91,6 +93,10 @@ interface OrderState {
   refundError: string | null;
   refundEligibility: RefundEligibilityResponse | null;
   refundEligibilityLoading: boolean;
+  cancelRefundLoading: boolean;
+  cancelRefundError: string | null;
+  refundCancelEligibility: RefundCancelEligibilityResponse | null;
+  refundCancelEligibilityLoading: boolean;
 }
 
 const initialState: OrderState = {
@@ -108,6 +114,10 @@ const initialState: OrderState = {
   refundError: null,
   refundEligibility: null,
   refundEligibilityLoading: false,
+  cancelRefundLoading: false,
+  cancelRefundError: null,
+  refundCancelEligibility: null,
+  refundCancelEligibilityLoading: false,
 };
 
 // Thunk para obtener todas las órdenes (con filtro opcional por status)
@@ -309,6 +319,54 @@ export const checkRefundEligibility = createAsyncThunk<
   }
 );
 
+// Thunk para cancelar reembolso de una orden
+export const cancelRefund = createAsyncThunk<
+  CancelRefundResponse,
+  string,
+  { rejectValue: string }
+>(
+  "orders/cancelRefund",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.delete<ApiResponse<CancelRefundResponse>>(
+        `/orders/${orderId}/refund`
+      );
+      if (response.data.status !== "success" || !response.data.data) {
+        return rejectWithValue(
+          response.data.message || "Error al cancelar reembolso"
+        );
+      }
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
+// Thunk para verificar elegibilidad de cancelación de reembolso
+export const checkRefundCancelEligibility = createAsyncThunk<
+  RefundCancelEligibilityResponse,
+  string,
+  { rejectValue: string }
+>(
+  "orders/checkRefundCancelEligibility",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get<ApiResponse<RefundCancelEligibilityResponse>>(
+        `/orders/${orderId}/refund/cancel-eligibility`
+      );
+      if (response.data.status !== "success" || !response.data.data) {
+        return rejectWithValue(
+          response.data.message || "Error al verificar elegibilidad de cancelación de reembolso"
+        );
+      }
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
 const orderSlice = createSlice({
   name: "orders",
   initialState,
@@ -339,6 +397,8 @@ const orderSlice = createSlice({
     clearRefundState(state) {
       state.refundError = null;
       state.refundEligibility = null;
+      state.cancelRefundError = null;
+      state.refundCancelEligibility = null;
     },
   },
   extraReducers: (builder) => {
@@ -546,6 +606,50 @@ const orderSlice = createSlice({
         state.refundEligibilityLoading = false;
         state.refundError = action.payload || "Error al verificar elegibilidad de reembolso";
         state.refundEligibility = null;
+      })
+      // cancelRefund cases
+      .addCase(cancelRefund.pending, (state) => {
+        state.cancelRefundLoading = true;
+        state.cancelRefundError = null;
+      })
+      .addCase(cancelRefund.fulfilled, (state, action) => {
+        state.cancelRefundLoading = false;
+        state.cancelRefundError = null;
+        
+        // Si fue exitoso, actualizar la orden
+        if (action.payload.success && action.payload.order) {
+          const updatedOrder = action.payload.order;
+          
+          // Actualizar en la lista de órdenes
+          const idx = state.orders.findIndex((o) => o.id === updatedOrder.id);
+          if (idx !== -1) {
+            state.orders[idx] = updatedOrder;
+          }
+          
+          // También actualizar orderById si es la misma orden
+          if (state.orderById && state.orderById.id === updatedOrder.id) {
+            state.orderById = updatedOrder;
+          }
+        }
+      })
+      .addCase(cancelRefund.rejected, (state, action) => {
+        state.cancelRefundLoading = false;
+        state.cancelRefundError = action.payload || "Error al cancelar reembolso";
+      })
+      // checkRefundCancelEligibility cases
+      .addCase(checkRefundCancelEligibility.pending, (state) => {
+        state.refundCancelEligibilityLoading = true;
+        state.cancelRefundError = null;
+      })
+      .addCase(checkRefundCancelEligibility.fulfilled, (state, action) => {
+        state.refundCancelEligibilityLoading = false;
+        state.cancelRefundError = null;
+        state.refundCancelEligibility = action.payload;
+      })
+      .addCase(checkRefundCancelEligibility.rejected, (state, action) => {
+        state.refundCancelEligibilityLoading = false;
+        state.cancelRefundError = action.payload || "Error al verificar elegibilidad de cancelación de reembolso";
+        state.refundCancelEligibility = null;
       });
   },
 });

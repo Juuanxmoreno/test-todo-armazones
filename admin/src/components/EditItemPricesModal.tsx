@@ -14,7 +14,7 @@ interface EditItemPricesModalProps {
       costUSDAtPurchase?: number;
       priceUSDAtPurchase?: number;
       subTotal?: number;
-      gainUSD?: number;
+      contributionMarginUSD?: number;
       quantity?: number;
     }
   ) => Promise<void>;
@@ -32,7 +32,7 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
     costUSDAtPurchase: item.costUSDAtPurchase,
     priceUSDAtPurchase: item.priceUSDAtPurchase,
     subTotal: item.subTotal,
-    gainUSD: item.gainUSD,
+    contributionMarginUSD: item.contributionMarginUSD,
     quantity: item.quantity,
   });
 
@@ -48,7 +48,7 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
       // Auto-calculate values when in "prices" mode
       if (editMode === "prices" && (name === "costUSDAtPurchase" || name === "priceUSDAtPurchase" || name === "quantity")) {
         updated.subTotal = updated.priceUSDAtPurchase * updated.quantity;
-        updated.gainUSD = (updated.priceUSDAtPurchase - updated.costUSDAtPurchase) * updated.quantity;
+        updated.contributionMarginUSD = (updated.priceUSDAtPurchase - updated.costUSDAtPurchase) * updated.quantity;
       }
       
       return updated;
@@ -59,7 +59,7 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
     e.preventDefault();
     
     if (editMode === "prices") {
-      // Solo enviar precios, dejar que el backend calcule subTotal y gainUSD
+      // Solo enviar precios, dejar que el backend calcule subTotal y contributionMarginUSD
       await onSave(item.productVariant.id, {
         action: "update_prices",
         costUSDAtPurchase: formData.costUSDAtPurchase,
@@ -73,7 +73,7 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
         costUSDAtPurchase: formData.costUSDAtPurchase,
         priceUSDAtPurchase: formData.priceUSDAtPurchase,
         subTotal: formData.subTotal,
-        gainUSD: formData.gainUSD,
+        contributionMarginUSD: formData.contributionMarginUSD,
       });
     }
     
@@ -85,7 +85,7 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
       costUSDAtPurchase: item.costUSDAtPurchase,
       priceUSDAtPurchase: item.priceUSDAtPurchase,
       subTotal: item.subTotal,
-      gainUSD: item.gainUSD,
+      contributionMarginUSD: item.contributionMarginUSD,
       quantity: item.quantity,
     });
   };
@@ -223,12 +223,12 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-[#111111] mb-1">
-                  Ganancia USD (Manual)
+                  Contribución Marginal (Manual)
                 </label>
                 <input
                   type="number"
-                  name="gainUSD"
-                  value={formData.gainUSD}
+                  name="contributionMarginUSD"
+                  value={formData.contributionMarginUSD}
                   onChange={handleInputChange}
                   step="0.01"
                   className="w-full px-3 py-2 border border-[#e1e1e1] rounded-none focus:outline-none focus:ring-2 focus:ring-[#2271B1] text-[#222222] bg-[#FFFFFF]"
@@ -243,9 +243,9 @@ const EditItemPricesModal: React.FC<EditItemPricesModalProps> = ({
             <div className="grid grid-cols-2 gap-2 text-xs text-[#333333]">
               <div>Cantidad: {formData.quantity}</div>
               <div>Subtotal: ${formData.subTotal.toFixed(2)}</div>
-              <div>Ganancia: ${formData.gainUSD.toFixed(2)}</div>
+              <div>Contribución Marginal: ${formData.contributionMarginUSD.toFixed(2)}</div>
               <div>Margen: {formData.priceUSDAtPurchase > 0 ? 
-                ((formData.gainUSD / (formData.priceUSDAtPurchase * formData.quantity)) * 100).toFixed(1) : 0}%
+                ((formData.contributionMarginUSD / (formData.priceUSDAtPurchase * formData.quantity)) * 100).toFixed(1) : 0}%
               </div>
             </div>
           </div>

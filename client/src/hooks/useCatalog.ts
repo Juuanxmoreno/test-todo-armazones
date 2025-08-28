@@ -38,8 +38,8 @@ export const useCatalog = (options: UseCatalogOptions = {}): UseCatalogReturn =>
   const form = useForm<CatalogFormData>({
     defaultValues: {
       email: '',
-      categories: autoSelectAll ? CATALOG_CATEGORIES.map(cat => cat.id) : (initialCategories.length > 0 ? initialCategories : CATALOG_CATEGORIES.map(cat => cat.id)),
-      subcategories: autoSelectAll ? CATALOG_SUBCATEGORIES.map(sub => sub.id) : (initialSubcategories.length > 0 ? initialSubcategories : CATALOG_SUBCATEGORIES.map(sub => sub.id)),
+      categories: CATALOG_CATEGORIES.map(cat => cat.id), // Siempre todas las categorías por defecto
+      subcategories: CATALOG_SUBCATEGORIES.map(sub => sub.id), // Siempre todas las subcategorías por defecto
       priceAdjustments: [],
     },
   });
@@ -113,26 +113,6 @@ export const useCatalog = (options: UseCatalogOptions = {}): UseCatalogReturn =>
     }
   };
 
-  // Seleccionar todas las categorías
-  const selectAllCategories = () => {
-    setValue('categories', CATALOG_CATEGORIES.map(cat => cat.id));
-  };
-
-  // Deseleccionar todas las categorías
-  const deselectAllCategories = () => {
-    setValue('categories', []);
-  };
-
-  // Seleccionar todas las subcategorías
-  const selectAllSubcategories = () => {
-    setValue('subcategories', CATALOG_SUBCATEGORIES.map(sub => sub.id));
-  };
-
-  // Deseleccionar todas las subcategorías
-  const deselectAllSubcategories = () => {
-    setValue('subcategories', []);
-  };
-
   // Limpiar error
   const clearError = () => {
     setState(prev => ({ ...prev, error: null }));
@@ -171,15 +151,8 @@ export const useCatalog = (options: UseCatalogOptions = {}): UseCatalogReturn =>
     if (field === 'percentageIncrease') {
       updated[index] = { ...updated[index], [field]: Number(value) };
     } else {
-      // Para categoryId y subcategoryId
+      // Para categoryId y subcategoryId - ahora se pueden usar juntos
       updated[index] = { ...updated[index], [field]: value as string };
-      
-      // Limpiar el campo opuesto cuando se selecciona uno
-      if (field === 'categoryId' && value) {
-        delete updated[index].subcategoryId;
-      } else if (field === 'subcategoryId' && value) {
-        delete updated[index].categoryId;
-      }
     }
     
     setValue('priceAdjustments', updated);
@@ -290,10 +263,6 @@ export const useCatalog = (options: UseCatalogOptions = {}): UseCatalogReturn =>
       removeLogo,
       handleCategoryChange,
       handleSubcategoryChange,
-      selectAllCategories,
-      deselectAllCategories,
-      selectAllSubcategories,
-      deselectAllSubcategories,
       clearError,
       clearSuccess,
       addPriceAdjustment,

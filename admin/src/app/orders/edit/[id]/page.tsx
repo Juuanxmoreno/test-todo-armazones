@@ -46,6 +46,8 @@ const EditOrderPage = () => {
     applyOrderRefund,
     checkOrderRefundEligibility,
     clearRefundInfo,
+    cancelRefundLoading,
+    cancelOrderRefund,
   } = useOrders();
   const [form, setForm] = useState<Order | null>(null);
   const [originalForm, setOriginalForm] = useState<Order | null>(null);
@@ -552,7 +554,7 @@ const EditOrderPage = () => {
       costUSDAtPurchase?: number;
       priceUSDAtPurchase?: number;
       subTotal?: number;
-      gainUSD?: number;
+      contributionMarginUSD?: number;
       quantity?: number;
     }
   ) => {
@@ -787,6 +789,37 @@ const EditOrderPage = () => {
       (error) => {
         addError(
           `Error al aplicar el reembolso: ${error || "Error desconocido"}`
+        );
+      }
+    );
+  };
+
+  const handleCancelRefund = async () => {
+    if (!form?.id) return;
+
+    const confirmed = window.confirm(
+      "¿Estás seguro de que quieres cancelar el reembolso? Esta acción restaurará los montos originales de la orden."
+    );
+
+    if (!confirmed) return;
+
+    cancelOrderRefund(
+      form.id,
+      (response) => {
+        if (response.success) {
+          addSuccess("Reembolso cancelado correctamente");
+          // Actualizar el formulario local con la respuesta del servidor
+          if (response.order) {
+            setForm(response.order);
+            setOriginalForm(response.order);
+          }
+        } else {
+          addError(response.message || "Error al cancelar el reembolso");
+        }
+      },
+      (error) => {
+        addError(
+          `Error al cancelar el reembolso: ${error || "Error desconocido"}`
         );
       }
     );
@@ -1321,7 +1354,7 @@ const EditOrderPage = () => {
                               </td>
                               <td>
                                 {formatCurrency(
-                                  item.costUSDAtPurchase * item.quantity,
+                                  item.cogsUSD,
                                   "en-US",
                                   "USD"
                                 )}
@@ -1355,7 +1388,7 @@ const EditOrderPage = () => {
                                 {formatCurrency(item.subTotal, "en-US", "USD")}
                               </td>
                               <td>
-                                {formatCurrency(item.gainUSD, "en-US", "USD")}
+                                {formatCurrency(item.contributionMarginUSD, "en-US", "USD")}
                               </td>
                               <td>
                                 <div className="flex gap-2">
@@ -1399,7 +1432,7 @@ const EditOrderPage = () => {
                           {form.refund && (
                             <tr>
                               <td
-                                colSpan={5}
+                                colSpan={6}
                                 className="text-sm text-[#A00000]"
                               >
                                 Reembolso: -
@@ -1414,6 +1447,21 @@ const EditOrderPage = () => {
                                     - {form.refund.reason}
                                   </span>
                                 )}
+                              </td>
+                              <td className="text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelRefund()}
+                                  disabled={cancelRefundLoading}
+                                  className="btn btn-xs text-white bg-[#d32f2f] border-[#d32f2f] rounded-md shadow-md hover:bg-[#b71c1c] hover:border-[#b71c1c] transition-colors duration-200 ease-in-out disabled:opacity-50"
+                                  title="Cancelar reembolso"
+                                >
+                                  {cancelRefundLoading ? (
+                                    <span className="loading loading-spinner loading-xs"></span>
+                                  ) : (
+                                    "×"
+                                  )}
+                                </button>
                               </td>
                             </tr>
                           )}
@@ -1479,7 +1527,7 @@ const EditOrderPage = () => {
                     </span>
                     <span className="text-sm text-[#222222]">
                       {formatCurrency(
-                        form.subTotal - form.totalGainUSD,
+                        form.totalCogsUSD,
                         "en-US",
                         "USD"
                       )}
@@ -1490,7 +1538,7 @@ const EditOrderPage = () => {
                       Contribución Marginal:
                     </span>
                     <span className="text-sm text-[#222222]">
-                      {formatCurrency(form.totalGainUSD, "en-US", "USD")}
+                      {formatCurrency(form.totalContributionMarginUSD, "en-US", "USD")}
                     </span>
                   </div>
                 </div>

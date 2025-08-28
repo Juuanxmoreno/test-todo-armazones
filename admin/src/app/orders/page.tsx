@@ -540,7 +540,7 @@ const OrdersPage = () => {
                                 {formatCurrency(item.subTotal, "en-US", "USD")}
                               </td>
                               <td>
-                                {formatCurrency(item.gainUSD, "en-US", "USD")}
+                                {formatCurrency(item.contributionMarginUSD, "en-US", "USD")}
                               </td>
                             </tr>
                           )
@@ -576,14 +576,14 @@ const OrdersPage = () => {
               <p className="mb-2 text-[#333333]">
                 <strong>Cost of Goods:</strong>{" "}
                 {formatCurrency(
-                  previewOrder.subTotal - previewOrder.totalGainUSD,
+                  previewOrder.subTotal - previewOrder.totalContributionMarginUSD, //JUAN REVISA ESTO!
                   "en-US",
                   "USD"
                 )}
               </p>
               <p className="mb-2 text-[#333333]">
                 <strong>Contribución Marginal:</strong>{" "}
-                {formatCurrency(previewOrder.totalGainUSD, "en-US", "USD")}
+                {formatCurrency(previewOrder.totalContributionMarginUSD, "en-US", "USD")}
               </p>
             </div>
           </div>

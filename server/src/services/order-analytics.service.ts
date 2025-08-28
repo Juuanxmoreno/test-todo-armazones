@@ -56,43 +56,15 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
           orderStatus: { $nin: [OrderStatus.Cancelled, OrderStatus.Refunded] },
         },
       },
-      // Usar facet para calcular métricas en paralelo sin duplicar totalAmount
+      // Agrupación simple usando campos pre-calculados
       {
-        $facet: {
-          // Para obtener totalAmount y orderCount (sin unwind)
-          orderMetrics: [
-            {
-              $group: {
-                _id: null,
-                totalAmount: { $sum: '$totalAmount' },
-                orderCount: { $sum: 1 },
-              },
-            },
-          ],
-          // Para obtener totalCost e itemCount (con unwind)
-          itemMetrics: [
-            { $unwind: '$items' },
-            {
-              $group: {
-                _id: null,
-                totalCost: {
-                  $sum: {
-                    $multiply: ['$items.costUSDAtPurchase', '$items.quantity'],
-                  },
-                },
-                itemCount: { $sum: '$items.quantity' },
-              },
-            },
-          ],
-        },
-      },
-      // Combinar los resultados
-      {
-        $project: {
-          totalAmount: { $arrayElemAt: ['$orderMetrics.totalAmount', 0] },
-          orderCount: { $arrayElemAt: ['$orderMetrics.orderCount', 0] },
-          totalCost: { $arrayElemAt: ['$itemMetrics.totalCost', 0] },
-          itemCount: { $arrayElemAt: ['$itemMetrics.itemCount', 0] },
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$totalAmount' },
+          totalCogsUSD: { $sum: '$totalCogsUSD' }, // Campo pre-calculado
+          totalContributionMarginUSD: { $sum: '$totalContributionMarginUSD' }, // Campo pre-calculado
+          orderCount: { $sum: 1 },
+          totalItems: { $sum: { $size: '$items' } }, // Contar items sin unwind
         },
       },
     ];
@@ -105,10 +77,9 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
     }
 
     const gross = this.roundToTwoDecimals(data.totalAmount || 0);
-    const totalCost = this.roundToTwoDecimals(data.totalCost || 0);
-    const net = this.roundToTwoDecimals(gross - totalCost);
+    const net = this.roundToTwoDecimals(data.totalContributionMarginUSD || 0); // Ahora net = margen de contribución
     const count = data.orderCount || 0;
-    const items = data.itemCount || 0;
+    const items = data.totalItems || 0;
 
     // Calcular promedios diarios
     const averageGrossDaily = this.roundToTwoDecimals(this.calculateDailyAverages(gross, dateRange));
@@ -171,104 +142,23 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
           orderStatus: { $nin: [OrderStatus.Cancelled, OrderStatus.Refunded] },
         },
       },
-      // Usar facet para calcular métricas por intervalo en paralelo
+      // Agrupación simple por período usando campos pre-calculados
       {
-        $facet: {
-          // Métricas de órdenes (sin unwind)
-          orderMetrics: [
-            {
-              $group: {
-                _id: {
-                  $dateToString: {
-                    format: dateFormat,
-                    date: '$createdAt',
-                    timezone: timezone,
-                  },
-                },
-                totalAmount: { $sum: '$totalAmount' },
-                orderCount: { $sum: 1 },
-              },
-            },
-          ],
-          // Métricas de items (con unwind)
-          itemMetrics: [
-            { $unwind: '$items' },
-            {
-              $group: {
-                _id: {
-                  $dateToString: {
-                    format: dateFormat,
-                    date: '$createdAt',
-                    timezone: timezone,
-                  },
-                },
-                totalCost: {
-                  $sum: {
-                    $multiply: ['$items.costUSDAtPurchase', '$items.quantity'],
-                  },
-                },
-                itemCount: { $sum: '$items.quantity' },
-              },
-            },
-          ],
-        },
-      },
-      // Combinar resultados de facet
-      {
-        $project: {
-          combined: {
-            $map: {
-              input: '$orderMetrics',
-              as: 'order',
-              in: {
-                _id: '$$order._id',
-                totalAmount: '$$order.totalAmount',
-                orderCount: '$$order.orderCount',
-                totalCost: {
-                  $let: {
-                    vars: {
-                      itemMetric: {
-                        $arrayElemAt: [
-                          {
-                            $filter: {
-                              input: '$itemMetrics',
-                              cond: { $eq: ['$$this._id', '$$order._id'] },
-                            },
-                          },
-                          0,
-                        ],
-                      },
-                    },
-                    in: { $ifNull: ['$$itemMetric.totalCost', 0] },
-                  },
-                },
-                itemCount: {
-                  $let: {
-                    vars: {
-                      itemMetric: {
-                        $arrayElemAt: [
-                          {
-                            $filter: {
-                              input: '$itemMetrics',
-                              cond: { $eq: ['$$this._id', '$$order._id'] },
-                            },
-                          },
-                          0,
-                        ],
-                      },
-                    },
-                    in: { $ifNull: ['$$itemMetric.itemCount', 0] },
-                  },
-                },
-              },
+        $group: {
+          _id: {
+            $dateToString: {
+              format: dateFormat,
+              date: '$createdAt',
+              timezone: timezone,
             },
           },
+          totalAmount: { $sum: '$totalAmount' },
+          totalCogsUSD: { $sum: '$totalCogsUSD' }, // Campo pre-calculado
+          totalContributionMarginUSD: { $sum: '$totalContributionMarginUSD' }, // Campo pre-calculado
+          orderCount: { $sum: 1 },
+          totalItems: { $sum: { $size: '$items' } }, // Contar items sin unwind
         },
       },
-      // Descomponer array combined
-      { $unwind: '$combined' },
-      // Reemplazar documento raíz con combined
-      { $replaceRoot: { newRoot: '$combined' } },
       // Ordenar por fecha
       { $sort: { _id: 1 } },
     ];
@@ -287,10 +177,9 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
       const label = this.generateLabelFromTimestamp(timestamp, granularity);
 
       const gross = this.roundToTwoDecimals(result.totalAmount || 0);
-      const totalCost = this.roundToTwoDecimals(result.totalCost || 0);
-      const net = this.roundToTwoDecimals(gross - totalCost);
+      const net = this.roundToTwoDecimals(result.totalContributionMarginUSD || 0); // Ahora net = margen de contribución
       const count = result.orderCount || 0;
-      const items = result.itemCount || 0;
+      const items = result.totalItems || 0;
 
       // Para breakdown, los promedios diarios no aplican (se calculan por intervalo)
       const metrics: IOrderAnalyticsMetrics = {
@@ -428,7 +317,9 @@ export class OrderAnalyticsService extends BaseAnalyticsService<IOrderAnalyticsM
         startDate: result.period.range.startDate.toISOString(),
         endDate: result.period.range.endDate.toISOString(),
       },
-      ...(result.period.granularity && { granularity: result.period.granularity }),
+      ...(result.period.granularity && {
+        granularity: result.period.granularity,
+      }),
     };
 
     const current: OrderAnalyticsCurrentDto = {

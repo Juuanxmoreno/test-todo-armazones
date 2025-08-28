@@ -137,7 +137,7 @@ export const updateOrderBodySchema = z.object({
           costUSDAtPurchase: z.number().min(0, 'El costo debe ser mayor o igual a 0').optional(),
           priceUSDAtPurchase: z.number().min(0, 'El precio debe ser mayor o igual a 0').optional(),
           subTotal: z.number().min(0, 'El subtotal debe ser mayor o igual a 0').optional(),
-          gainUSD: z.number().optional(), // Puede ser negativo en casos especiales
+          contributionMarginUSD: z.number().optional(), // Puede ser negativo en casos especiales
         })
         .refine(
           (data) => {
@@ -156,7 +156,7 @@ export const updateOrderBodySchema = z.object({
                 data.costUSDAtPurchase !== undefined ||
                 data.priceUSDAtPurchase !== undefined ||
                 data.subTotal !== undefined ||
-                data.gainUSD !== undefined
+                data.contributionMarginUSD !== undefined
               );
             }
             return true;
@@ -168,9 +168,9 @@ export const updateOrderBodySchema = z.object({
         )
         .refine(
           (data) => {
-            // Validación adicional: si se especifica gainUSD manual, también debe haber costos
-            if (data.action === 'update_all' && data.gainUSD !== undefined) {
-              // Si se da gainUSD manual, se recomienda tener al menos los precios para contexto
+            // Validación adicional: si se especifica contributionMarginUSD manual, también debe haber costos
+            if (data.action === 'update_all' && data.contributionMarginUSD !== undefined) {
+              // Si se da contributionMarginUSD manual, se recomienda tener al menos los precios para contexto
               // Pero no es obligatorio ya que puede ser un override total
               return true;
             }
@@ -178,7 +178,7 @@ export const updateOrderBodySchema = z.object({
           },
           {
             message:
-              'Cuando se especifica gainUSD manual, se recomienda proporcionar también los precios para mantener contexto.',
+              'Cuando se especifica contributionMarginUSD manual, se recomienda proporcionar también los precios para mantener contexto.',
           },
         ),
     )
@@ -300,3 +300,9 @@ export const applyRefundBodySchema = z
         'Para reembolsos de porcentaje, el valor debe estar entre 0 y 100. Para montos fijos, no puede exceder $100,000 USD',
     },
   );
+
+export const cancelRefundParamsSchema = z.object({
+  orderId: z.string().refine((val) => Types.ObjectId.isValid(val), {
+    message: 'El orderId debe ser un ObjectId válido',
+  }),
+});

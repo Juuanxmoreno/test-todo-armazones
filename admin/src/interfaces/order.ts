@@ -24,7 +24,8 @@ export interface Order {
   bankTransferExpense?: number;
   totalAmount: number;
   totalAmountARS: number;
-  totalGainUSD: number;
+  totalCogsUSD: number;
+  totalContributionMarginUSD: number;
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;
   refund?: RefundDetails | null;
@@ -56,7 +57,8 @@ export interface OrderItem {
   subTotal: number;
   costUSDAtPurchase: number;
   priceUSDAtPurchase: number;
-  gainUSD: number;
+  cogsUSD: number;
+  contributionMarginUSD: number;
 }
 
 export interface ShippingAddress {
@@ -86,7 +88,7 @@ export interface UpdateOrderItemPayload {
   costUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
   priceUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
   subTotal?: number; // Para 'update_all' (override manual del subtotal)
-  gainUSD?: number; // Para 'update_all' (override manual de la ganancia)
+  contributionMarginUSD?: number; // Para 'update_all' (override manual de la contribución marginal)
 }
 
 export interface UpdateOrderPayload {
@@ -169,7 +171,7 @@ export interface UpdateItemCompletePayload {
   costUSDAtPurchase?: number;
   priceUSDAtPurchase?: number;
   subTotal?: number;
-  gainUSD?: number;
+  contributionMarginUSD?: number;
 }
 
 // Interfaces para reembolsos
@@ -208,4 +210,28 @@ export interface ApplyRefundResponse {
     originalTotalAmount: number;
     newTotalAmount: number;
   };
+}
+
+export interface CancelRefundResponse {
+  success: boolean;
+  order?: Order;
+  message: string;
+  refundCancellationDetails?: {
+    cancelledRefundAmount: number;
+    originalSubTotal: number;
+    restoredSubTotal: number;
+    originalBankTransferExpense?: number;
+    restoredBankTransferExpense?: number;
+    originalTotalAmount: number;
+    restoredTotalAmount: number;
+    originalContributionMarginUSD: number;
+    restoredContributionMarginUSD: number;
+    cogsUSD: number;
+  };
+}
+
+export interface RefundCancelEligibilityResponse {
+  canCancelRefund: boolean;
+  reason?: string;
+  refundAmount?: number;
 }

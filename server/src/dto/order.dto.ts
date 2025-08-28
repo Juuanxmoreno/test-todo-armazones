@@ -37,7 +37,7 @@ export interface UpdateOrderItemDto {
   costUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
   priceUSDAtPurchase?: number; // Para 'update_prices', 'update_all'
   subTotal?: number; // Para 'update_all' (override manual del subtotal)
-  gainUSD?: number; // Para 'update_all' (override manual de la ganancia)
+  contributionMarginUSD?: number; // Para 'update_all' (override manual del margen de contribución)
 }
 
 export interface UpdateOrderDto {
@@ -74,13 +74,15 @@ export interface ProductVariantResponse {
   priceUSD: number;
   product: ProductBaseResponse;
 }
+
 export interface OrderItemResponse {
   productVariant: ProductVariantResponse;
   quantity: number;
   subTotal: number;
   costUSDAtPurchase: number;
   priceUSDAtPurchase: number;
-  gainUSD: number;
+  contributionMarginUSD: number;
+  cogsUSD: number; // Cost of Goods Sold
 }
 
 // DTO seguro para exponer datos de usuario en respuestas de orden
@@ -129,7 +131,8 @@ export interface OrderResponseDto {
   bankTransferExpense?: number;
   totalAmount: number;
   totalAmountARS: number;
-  totalGainUSD: number;
+  totalContributionMarginUSD: number;
+  totalCogsUSD: number; // Total Cost of Goods Sold
   orderStatus: OrderStatus;
   allowViewInvoice: boolean;
   refund?: RefundResponse | null;
@@ -138,9 +141,9 @@ export interface OrderResponseDto {
 }
 
 // Versiones para usuario usando Omit
-export type OrderItemUserResponse = Omit<OrderItemResponse, 'costUSDAtPurchase' | 'gainUSD'>;
+export type OrderItemUserResponse = Omit<OrderItemResponse, 'costUSDAtPurchase' | 'contributionMarginUSD' | 'cogsUSD'>;
 
-export type OrderUserResponseDto = Omit<OrderResponseDto, 'totalGainUSD' | 'items'> & {
+export type OrderUserResponseDto = Omit<OrderResponseDto, 'totalContributionMarginUSD' | 'totalCogsUSD' | 'items'> & {
   items: OrderItemUserResponse[];
 };
 
@@ -203,5 +206,26 @@ export interface ApplyRefundResultDto {
     newBankTransferExpense?: number;
     originalTotalAmount: number;
     newTotalAmount: number;
+    originalContributionMarginUSD: number;
+    newContributionMarginUSD: number;
+    cogsUSD: number; // COGS permanece sin cambios durante reembolso
+  };
+}
+
+export interface CancelRefundResultDto {
+  success: boolean;
+  order?: OrderResponseDto;
+  message: string;
+  refundCancellationDetails?: {
+    cancelledRefundAmount: number;
+    originalSubTotal: number; // Subtotal antes de cancelar el reembolso (con reembolso aplicado)
+    restoredSubTotal: number; // Subtotal después de cancelar el reembolso (valor original)
+    originalBankTransferExpense?: number;
+    restoredBankTransferExpense?: number;
+    originalTotalAmount: number;
+    restoredTotalAmount: number;
+    originalContributionMarginUSD: number;
+    restoredContributionMarginUSD: number;
+    cogsUSD: number; // COGS permanece sin cambios
   };
 }

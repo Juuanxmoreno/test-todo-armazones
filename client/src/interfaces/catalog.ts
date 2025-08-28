@@ -99,10 +99,6 @@ export interface UseCatalogReturn {
     removeLogo: () => void;
     handleCategoryChange: (categoryId: string, checked: boolean) => void;
     handleSubcategoryChange: (subcategoryId: string, checked: boolean) => void;
-    selectAllCategories: () => void;
-    deselectAllCategories: () => void;
-    selectAllSubcategories: () => void;
-    deselectAllSubcategories: () => void;
     clearError: () => void;
     clearSuccess: () => void;
     addPriceAdjustment: () => void;

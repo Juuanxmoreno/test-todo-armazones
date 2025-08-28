@@ -17,6 +17,7 @@ import {
   RefundDto,
   RefundResponse,
   ApplyRefundResultDto,
+  CancelRefundResultDto,
 } from '@dto/order.dto';
 import Address, { IAddressDocument } from '@models/Address';
 import Cart from '@models/Cart';
@@ -89,7 +90,8 @@ export class OrderService {
     orderNumber?: number,
   ) {
     let subTotal = 0;
-    let totalGainUSD = 0;
+    let totalContributionMarginUSD = 0;
+    let totalCogsUSD = 0;
     const items: IOrder['items'] = [];
 
     for (const item of cartItems) {
@@ -117,19 +119,23 @@ export class OrderService {
       const averageCost = updatedVariant?.averageCostUSD || 0;
 
       const itemSubTotal = productVariant.priceUSD * item.quantity;
-      const gainUSD = (productVariant.priceUSD - averageCost) * item.quantity;
+      const contributionMarginUSD = (productVariant.priceUSD - averageCost) * item.quantity;
+      const cogsUSD = averageCost * item.quantity; // Cost of Goods Sold
+
       items.push({
         productVariant: item.productVariant,
         quantity: item.quantity,
         subTotal: itemSubTotal,
         costUSDAtPurchase: averageCost, // Usar el costo promedio ponderado
         priceUSDAtPurchase: productVariant.priceUSD,
-        gainUSD,
+        contributionMarginUSD,
+        cogsUSD,
       });
       subTotal += itemSubTotal;
-      totalGainUSD += gainUSD;
+      totalContributionMarginUSD += contributionMarginUSD;
+      totalCogsUSD += cogsUSD;
     }
-    return { items, subTotal, totalGainUSD };
+    return { items, subTotal, totalContributionMarginUSD, totalCogsUSD };
   }
 
   // Helper: Procesa items directos de ProductVariant para órdenes de admin
@@ -140,7 +146,8 @@ export class OrderService {
     orderNumber?: number,
   ) {
     let subTotal = 0;
-    let totalGainUSD = 0;
+    let totalContributionMarginUSD = 0;
+    let totalCogsUSD = 0;
     const items: IOrder['items'] = [];
 
     for (const orderItem of orderItems) {
@@ -184,7 +191,8 @@ export class OrderService {
       const averageCost = updatedVariant?.averageCostUSD || 0;
 
       const itemSubTotal = productVariant.priceUSD * orderItem.quantity;
-      const gainUSD = (productVariant.priceUSD - averageCost) * orderItem.quantity;
+      const contributionMarginUSD = (productVariant.priceUSD - averageCost) * orderItem.quantity;
+      const cogsUSD = averageCost * orderItem.quantity; // Cost of Goods Sold
 
       items.push({
         productVariant: orderItem.productVariantId,
@@ -192,14 +200,16 @@ export class OrderService {
         subTotal: itemSubTotal,
         costUSDAtPurchase: averageCost,
         priceUSDAtPurchase: productVariant.priceUSD,
-        gainUSD,
+        contributionMarginUSD,
+        cogsUSD,
       });
 
       subTotal += itemSubTotal;
-      totalGainUSD += gainUSD;
+      totalContributionMarginUSD += contributionMarginUSD;
+      totalCogsUSD += cogsUSD;
     }
 
-    return { items, subTotal, totalGainUSD };
+    return { items, subTotal, totalContributionMarginUSD, totalCogsUSD };
   }
 
   // Helper: Calcula gastos y total
@@ -233,7 +243,8 @@ export class OrderService {
     subTotal: number,
     bankTransferExpense: number | undefined,
     totalAmount: number,
-    totalGainUSD: number,
+    totalContributionMarginUSD: number,
+    totalCogsUSD: number,
   ): IOrder {
     // Determinar el estado inicial basado en el método de pago
     const initialStatus: OrderStatus = OrderStatus.Processing;
@@ -248,7 +259,8 @@ export class OrderService {
       subTotal,
       ...(bankTransferExpense && { bankTransferExpense }),
       totalAmount,
-      totalGainUSD,
+      totalContributionMarginUSD,
+      totalCogsUSD,
       orderStatus: initialStatus,
       allowViewInvoice: 'allowViewInvoice' in orderData ? (orderData.allowViewInvoice ?? false) : false,
     };
@@ -374,7 +386,8 @@ export class OrderService {
         subTotal: item.subTotal,
         costUSDAtPurchase: item.costUSDAtPurchase,
         priceUSDAtPurchase: item.priceUSDAtPurchase,
-        gainUSD: item.gainUSD,
+        contributionMarginUSD: item.contributionMarginUSD,
+        cogsUSD: item.cogsUSD,
       })),
       shippingAddress: this.mapAddressToResponseDto(order.shippingAddress),
       shippingMethod: order.shippingMethod,
@@ -385,7 +398,8 @@ export class OrderService {
       }),
       totalAmount: order.totalAmount,
       totalAmountARS: order.totalAmountARS ?? 0,
-      totalGainUSD: order.totalGainUSD,
+      totalContributionMarginUSD: order.totalContributionMarginUSD,
+      totalCogsUSD: order.totalCogsUSD,
       orderStatus: order.orderStatus,
       allowViewInvoice: order.allowViewInvoice,
       refund: this.mapRefundToResponse(order.refund),
@@ -394,7 +408,7 @@ export class OrderService {
     };
   }
 
-  // Helper: Mapea la orden populada a OrderUserResponseDto para usuario (sin gainUSD ni totalGainUSD)
+  // Helper: Mapea la orden populada a OrderUserResponseDto para usuario (sin contributionMarginUSD, totalContributionMarginUSD, cogsUSD ni totalCogsUSD)
   private mapOrderToUserResponseDto(order: IOrderDocument): OrderUserResponseDto {
     return {
       id: order._id.toString(),
@@ -505,7 +519,12 @@ export class OrderService {
       const orderNumber = await this.getNextOrderNumber(session);
 
       // Procesar los items del carrito
-      const { items, subTotal, totalGainUSD } = await this.processCartItems(cart.items, session, userId, orderNumber);
+      const { items, subTotal, totalContributionMarginUSD, totalCogsUSD } = await this.processCartItems(
+        cart.items,
+        session,
+        userId,
+        orderNumber,
+      );
 
       // Calcular totales
       const { bankTransferExpense, totalAmount } = this.calculateTotals(subTotal, orderData.paymentMethod);
@@ -529,7 +548,8 @@ export class OrderService {
         subTotal,
         bankTransferExpense,
         totalAmount,
-        totalGainUSD,
+        totalContributionMarginUSD,
+        totalCogsUSD,
       );
 
       // Asignar el totalAmountARS al objeto de orden
@@ -595,7 +615,7 @@ export class OrderService {
       const orderNumber = await this.getNextOrderNumber(session);
 
       // Procesar items de la orden (similar a processCartItems pero con ProductVariants directos)
-      const { items, subTotal, totalGainUSD } = await this.processOrderItems(
+      const { items, subTotal, totalContributionMarginUSD, totalCogsUSD } = await this.processOrderItems(
         orderData.items,
         session,
         adminUserId,
@@ -624,7 +644,8 @@ export class OrderService {
         subTotal,
         bankTransferExpense,
         totalAmount,
-        totalGainUSD,
+        totalContributionMarginUSD,
+        totalCogsUSD,
       );
 
       // Asignar el totalAmountARS al objeto de orden
@@ -723,11 +744,13 @@ export class OrderService {
           userId, // Pasar el userId para trazabilidad
         );
 
-        // Resetear la ganancia del item
-        item.gainUSD = 0;
+        // Resetear la contribución marginal del item
+        item.contributionMarginUSD = 0;
+        item.cogsUSD = 0; // Resetear COGS también
       }
 
-      order.totalGainUSD = 0;
+      order.totalContributionMarginUSD = 0;
+      order.totalCogsUSD = 0; // Resetear total COGS
       order.totalAmount = 0;
       order.orderStatus = OrderStatus.Cancelled;
       await order.save({ session });
@@ -1393,7 +1416,8 @@ export class OrderService {
     const priceUSDAtPurchase = productVariant.priceUSD;
     const costUSDAtPurchase = productVariant.averageCostUSD;
     const subTotal = priceUSDAtPurchase * update.quantity;
-    const gainUSD = (priceUSDAtPurchase - costUSDAtPurchase) * update.quantity;
+    const contributionMarginUSD = (priceUSDAtPurchase - costUSDAtPurchase) * update.quantity;
+    const cogsUSD = costUSDAtPurchase * update.quantity; // Cost of Goods Sold
 
     // Agregar el nuevo item
     order.items.push({
@@ -1402,7 +1426,8 @@ export class OrderService {
       subTotal,
       costUSDAtPurchase,
       priceUSDAtPurchase,
-      gainUSD,
+      contributionMarginUSD,
+      cogsUSD,
     } as IOrderItemDocument);
   }
 
@@ -1473,7 +1498,8 @@ export class OrderService {
     // Actualizar item
     item.quantity += update.quantity;
     item.subTotal = item.priceUSDAtPurchase * item.quantity;
-    item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    item.contributionMarginUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    item.cogsUSD = item.costUSDAtPurchase * item.quantity;
   }
 
   /**
@@ -1539,7 +1565,8 @@ export class OrderService {
     // Actualizar item
     item.quantity -= update.quantity;
     item.subTotal = item.priceUSDAtPurchase * item.quantity;
-    item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    item.contributionMarginUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    item.cogsUSD = item.costUSDAtPurchase * item.quantity;
   }
 
   /**
@@ -1652,7 +1679,8 @@ export class OrderService {
     // Actualizar item
     item.quantity = update.quantity;
     item.subTotal = item.priceUSDAtPurchase * item.quantity;
-    item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    item.contributionMarginUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    item.cogsUSD = item.costUSDAtPurchase * item.quantity;
   }
 
   /**
@@ -1709,7 +1737,7 @@ export class OrderService {
 
   /**
    * Actualiza únicamente los precios de un item existente
-   * Recalcula automáticamente subTotal y gainUSD basándose en la cantidad actual
+   * Recalcula automáticamente subTotal y contributionMarginUSD basándose en la cantidad actual
    */
   private async updateItemPrices(
     order: IOrderDocument,
@@ -1734,9 +1762,10 @@ export class OrderService {
     }
 
     if (hasChanges) {
-      // Recalcular automáticamente subTotal y gainUSD basándose en la cantidad actual
+      // Recalcular automáticamente subTotal, contributionMarginUSD y cogsUSD basándose en la cantidad actual
       item.subTotal = item.priceUSDAtPurchase * item.quantity;
-      item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+      item.contributionMarginUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+      item.cogsUSD = item.costUSDAtPurchase * item.quantity;
 
       logger.info('Precios de item actualizados', {
         orderId: order._id.toString(),
@@ -1747,7 +1776,8 @@ export class OrderService {
         oldPrice: item.priceUSDAtPurchase,
         newPrice: update.priceUSDAtPurchase,
         newSubTotal: item.subTotal,
-        newGainUSD: item.gainUSD,
+        newContributionMarginUSD: item.contributionMarginUSD,
+        newCogsUSD: item.cogsUSD,
         userId: userId?.toString(),
       });
     }
@@ -1864,7 +1894,7 @@ export class OrderService {
       hasChanges = true;
     }
 
-    // Actualizar subTotal y gainUSD
+    // Actualizar subTotal, contributionMarginUSD y cogsUSD
     if (update.subTotal !== undefined) {
       // Override manual del subtotal
       item.subTotal = update.subTotal;
@@ -1874,13 +1904,19 @@ export class OrderService {
       item.subTotal = item.priceUSDAtPurchase * item.quantity;
     }
 
-    if (update.gainUSD !== undefined) {
+    if (update.contributionMarginUSD !== undefined) {
       // Override manual de la ganancia
-      item.gainUSD = update.gainUSD;
+      item.contributionMarginUSD = update.contributionMarginUSD;
       hasChanges = true;
     } else if (hasChanges) {
       // Recalcular automáticamente si cambiaron precios o cantidad
-      item.gainUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+      item.contributionMarginUSD = (item.priceUSDAtPurchase - item.costUSDAtPurchase) * item.quantity;
+    }
+
+    // Manejar cogsUSD
+    if (hasChanges) {
+      // Recalcular automáticamente cogsUSD si cambiaron precios o cantidad
+      item.cogsUSD = item.costUSDAtPurchase * item.quantity;
     }
 
     if (hasChanges) {
@@ -1893,7 +1929,8 @@ export class OrderService {
         costUSDAtPurchase: item.costUSDAtPurchase,
         priceUSDAtPurchase: item.priceUSDAtPurchase,
         subTotal: item.subTotal,
-        gainUSD: item.gainUSD,
+        contributionMarginUSD: item.contributionMarginUSD,
+        cogsUSD: item.cogsUSD,
         userId: userId?.toString(),
       });
     }
@@ -1901,14 +1938,17 @@ export class OrderService {
 
   /**
    * Recalcula todos los totales de la orden
-   * Calcula subtotal, ganancias, gastos bancarios y total final
+   * Calcula subtotal, ganancias, COGS y total final
    */
   private async recalculateOrderTotals(order: IOrderDocument): Promise<void> {
     // Calcular subtotal
     order.subTotal = order.items.reduce((total, item) => total + item.subTotal, 0);
 
     // Calcular ganancia total
-    order.totalGainUSD = order.items.reduce((total, item) => total + item.gainUSD, 0);
+    order.totalContributionMarginUSD = order.items.reduce((total, item) => total + item.contributionMarginUSD, 0);
+
+    // Calcular total COGS
+    order.totalCogsUSD = order.items.reduce((total, item) => total + item.cogsUSD, 0);
 
     // Recalcular totales con gastos bancarios
     const { bankTransferExpense, totalAmount } = this.calculateTotals(order.subTotal, order.paymentMethod);
@@ -2059,8 +2099,20 @@ export class OrderService {
           throw new AppError('El monto del reembolso no puede ser mayor al subtotal de la orden', 400, 'fail');
         }
 
-        // Aplicar el reembolso al subtotal
-        const newSubTotal = Math.max(order.subTotal - refundAmount, 0);
+        // Lógica correcta de reembolso:
+        // 1. El reembolso se descuenta primero del margen de contribución
+        // 2. Si el reembolso excede el margen, el exceso se descuenta de COGS (pero COGS normalmente no se toca)
+        // 3. El nuevo subtotal = totalCogsUSD + nuevo margen de contribución
+
+        const originalContributionMargin = order.totalContributionMarginUSD;
+        const originalCogs = order.totalCogsUSD;
+
+        // Descontar el reembolso directamente del margen de contribución
+        const newContributionMargin = Math.max(originalContributionMargin - refundAmount, 0);
+
+        // Calcular el nuevo subtotal basado en COGS + nuevo margen
+        // (COGS permanece sin cambios ya que representa costos reales ya incurridos)
+        const newSubTotal = originalCogs + newContributionMargin;
 
         // Recalcular gastos bancarios basado en el nuevo subtotal
         const { bankTransferExpense: newBankTransferExpense, totalAmount: newTotalAmount } = this.calculateTotals(
@@ -2077,6 +2129,14 @@ export class OrderService {
           order.set('bankTransferExpense', undefined);
         }
         order.totalAmount = newTotalAmount;
+        order.totalContributionMarginUSD = newContributionMargin;
+        // totalCogsUSD permanece sin cambios
+
+        // Recalcular totalAmountARS con el valor actual del dólar
+        const dollar = await Dollar.findOne().session(session);
+        if (dollar) {
+          order.totalAmountARS = newTotalAmount * dollar.value;
+        }
 
         // Agregar información del reembolso
         order.refund = {
@@ -2102,6 +2162,10 @@ export class OrderService {
           newSubTotal,
           originalTotalAmount,
           newTotalAmount,
+          newTotalAmountARS: order.totalAmountARS,
+          originalContributionMargin,
+          newContributionMargin: order.totalContributionMarginUSD,
+          cogsUnchanged: order.totalCogsUSD, // COGS permanece igual
           processedBy: processedBy?.toString(),
         });
 
@@ -2124,6 +2188,9 @@ export class OrderService {
             }),
             originalTotalAmount,
             newTotalAmount,
+            originalContributionMarginUSD: originalContributionMargin,
+            newContributionMarginUSD: order.totalContributionMarginUSD,
+            cogsUSD: order.totalCogsUSD, // COGS permanece sin cambios
           },
         };
       });
@@ -2147,6 +2214,136 @@ export class OrderService {
       return {
         success: false,
         message: 'Error interno del servidor al aplicar el reembolso',
+      };
+    }
+  }
+
+  /**
+   * Cancela/elimina un reembolso de una orden
+   * Restaura los valores originales recalculando automáticamente el subtotal, gastos bancarios y total
+   * @param orderId - ID de la orden
+   * @param cancelledBy - Usuario que cancela el reembolso
+   * @returns Resultado detallado de la cancelación del reembolso
+   */
+  public async cancelRefund(orderId: Types.ObjectId, cancelledBy?: Types.ObjectId): Promise<CancelRefundResultDto> {
+    try {
+      const result = await withTransaction(async (session) => {
+        // Obtener la orden
+        const order = await Order.findById(orderId).session(session);
+        if (!order) {
+          throw new AppError('Orden no encontrada', 404, 'fail');
+        }
+
+        // Validar que tiene un reembolso aplicado
+        if (!order.refund) {
+          throw new AppError('Esta orden no tiene un reembolso aplicado para cancelar', 400, 'fail');
+        }
+
+        // Guardar valores actuales (con reembolso aplicado) para el resultado
+        const currentSubTotal = order.subTotal;
+        const currentBankTransferExpense = order.bankTransferExpense;
+        const currentTotalAmount = order.totalAmount;
+
+        // Lógica correcta de cancelación de reembolso:
+        // Restaurar el margen de contribución sumando el monto del reembolso cancelado
+        const cancelledRefundAmount = order.refund.appliedAmount;
+        const currentContributionMarginUSD = order.totalContributionMarginUSD;
+        const currentCogs = order.totalCogsUSD;
+
+        // Restaurar el margen de contribución sumando el reembolso cancelado
+        const restoredContributionMargin = currentContributionMarginUSD + cancelledRefundAmount;
+
+        // Recalcular el subtotal basado en COGS + margen restaurado
+        const restoredSubTotal = currentCogs + restoredContributionMargin;
+
+        // Recalcular gastos bancarios basado en el subtotal restaurado
+        const { bankTransferExpense: restoredBankTransferExpense, totalAmount: restoredTotalAmount } =
+          this.calculateTotals(restoredSubTotal, order.paymentMethod);
+
+        // Actualizar la orden con los valores restaurados
+        order.subTotal = restoredSubTotal;
+        if (restoredBankTransferExpense !== undefined) {
+          order.bankTransferExpense = restoredBankTransferExpense;
+        } else {
+          // Usar set para remover el campo cuando es undefined
+          order.set('bankTransferExpense', undefined);
+        }
+        order.totalAmount = restoredTotalAmount;
+        order.totalContributionMarginUSD = restoredContributionMargin;
+        // totalCogsUSD permanece sin cambios
+
+        // Recalcular totalAmountARS con el valor actual del dólar
+        const dollar = await Dollar.findOne().session(session);
+        if (dollar) {
+          order.totalAmountARS = restoredTotalAmount * dollar.value;
+        }
+
+        // Eliminar la información del reembolso
+        order.set('refund', undefined);
+
+        // Guardar la orden
+        await order.save({ session });
+
+        logger.info('Reembolso cancelado exitosamente', {
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          cancelledRefundAmount,
+          originalSubTotal: currentSubTotal, // SubTotal antes de la cancelación (con reembolso aplicado)
+          restoredSubTotal,
+          originalTotalAmount: currentTotalAmount, // Total antes de la cancelación (con reembolso aplicado)
+          restoredTotalAmount,
+          restoredTotalAmountARS: order.totalAmountARS,
+          originalContributionMargin: currentContributionMarginUSD,
+          restoredContributionMargin,
+          cogsUnchanged: order.totalCogsUSD,
+          cancelledBy: cancelledBy?.toString(),
+        });
+
+        // Obtener la orden populada para la respuesta
+        const populatedOrder = await this.getPopulatedOrderResponse(order._id, session);
+
+        return {
+          success: true,
+          order: populatedOrder,
+          message: `Reembolso de $${cancelledRefundAmount.toFixed(2)} USD cancelado exitosamente`,
+          refundCancellationDetails: {
+            cancelledRefundAmount,
+            originalSubTotal: currentSubTotal, // SubTotal antes de cancelar (con reembolso aplicado)
+            restoredSubTotal,
+            ...(currentBankTransferExpense !== undefined && {
+              originalBankTransferExpense: currentBankTransferExpense,
+            }),
+            ...(restoredBankTransferExpense !== undefined && {
+              restoredBankTransferExpense,
+            }),
+            originalTotalAmount: currentTotalAmount, // Total antes de cancelar (con reembolso aplicado)
+            restoredTotalAmount,
+            originalContributionMarginUSD: currentContributionMarginUSD,
+            restoredContributionMarginUSD: restoredContributionMargin,
+            cogsUSD: order.totalCogsUSD, // COGS permanece sin cambios
+          },
+        };
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Error al cancelar reembolso', {
+        orderId: orderId.toString(),
+        error: error instanceof Error ? error.message : String(error),
+        cancelledBy: cancelledBy?.toString(),
+      });
+
+      if (error instanceof AppError) {
+        return {
+          success: false,
+          message: error.message,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Error interno del servidor al cancelar el reembolso',
       };
     }
   }
@@ -2199,6 +2396,35 @@ export class OrderService {
     return {
       canRefund: true,
       maxRefundAmount: order.subTotal,
+    };
+  }
+
+  /**
+   * Valida si una orden puede cancelar su reembolso
+   * @param orderId - ID de la orden
+   * @returns Información sobre la elegibilidad para cancelar el reembolso
+   */
+  public async canCancelRefund(orderId: Types.ObjectId): Promise<{
+    canCancelRefund: boolean;
+    reason?: string;
+    refundAmount?: number;
+  }> {
+    const order = await Order.findById(orderId);
+    if (!order) {
+      throw new AppError('Orden no encontrada', 404, 'fail');
+    }
+
+    // Verificar si tiene un reembolso aplicado
+    if (!order.refund) {
+      return {
+        canCancelRefund: false,
+        reason: 'Esta orden no tiene un reembolso aplicado para cancelar',
+      };
+    }
+
+    return {
+      canCancelRefund: true,
+      refundAmount: order.refund.appliedAmount,
     };
   }
 

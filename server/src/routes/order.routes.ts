@@ -13,6 +13,7 @@ import {
   updateOrderStatusWithConflictsBodySchema,
   applyRefundParamsSchema,
   applyRefundBodySchema,
+  cancelRefundParamsSchema,
 } from 'schemas/order.schema';
 import { updateItemPricesBodySchema } from 'schemas/updateItemPrices.schema';
 
@@ -108,6 +109,25 @@ router.get(
     params: applyRefundParamsSchema,
   }),
   orderController.canApplyRefund,
+);
+
+// Cancelar reembolso (solo admin)
+router.delete(
+  '/:orderId/refund',
+  checkAdmin,
+  validateRequest({
+    params: cancelRefundParamsSchema,
+  }),
+  orderController.cancelRefund,
+);
+
+// Verificar si se puede cancelar el reembolso
+router.get(
+  '/:orderId/refund/cancel-eligibility',
+  validateRequest({
+    params: cancelRefundParamsSchema,
+  }),
+  orderController.canCancelRefund,
 );
 
 export default router;
