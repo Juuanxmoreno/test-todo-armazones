@@ -12,9 +12,138 @@ import {
   ShoppingBag,
   ShoppingCart,
   Users,
+  Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { AnalyticsTabNavigation } from "@/components/analytics";
 import { useStockAnalytics } from "@/hooks/useStockAnalytics";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { ProductStockAnalyticsDto, ProductVariantDto } from "@/interfaces/analytics";
+
+// Componente para una fila de producto con ref forwarding
+const ProductRow = React.forwardRef<HTMLTableRowElement, {
+  product: ProductStockAnalyticsDto;
+  formatCurrency: (value: number) => string;
+  formatNumber: (value: number) => string;
+  getStockBadgeColor: (stock: number) => string;
+}>(({ product, formatCurrency, formatNumber, getStockBadgeColor }, ref) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <>
+      <tr ref={ref} className="hover:bg-gray-50">
+        <td className="px-6 py-4 w-1/4 min-w-0">
+          <div className="flex items-start">
+            <div className="min-w-0 flex-1">
+              <div 
+                className="text-sm font-medium text-gray-900 break-words cursor-help"
+                title={product.productModel}
+              >
+                {product.productModel}
+              </div>
+              <div 
+                className="text-sm text-gray-500 truncate cursor-help"
+                title={product.sku}
+              >
+                {product.sku}
+              </div>
+            </div>
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap w-1/6">
+          <div className="text-sm text-gray-900">{formatNumber(product.totalStock)}</div>
+          <div className="text-sm text-gray-500">{product.variants.length} variantes</div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap w-1/6">
+          <div className="text-sm font-medium text-gray-900">
+            {formatCurrency(product.totalValuationAtCost)}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap w-1/6">
+          <div className="text-sm font-medium text-gray-900">
+            {formatCurrency(product.totalValuationAtRetail)}
+          </div>
+        </td>
+        <td className="px-6 py-4 w-1/6">
+          <div className="flex flex-wrap gap-1">
+            {product.variants.slice(0, 3).map((variant: ProductVariantDto) => (
+              <div key={variant.variantId} className="flex items-center space-x-1 mb-1">
+                <div 
+                  className="w-3 h-3 rounded-full border flex-shrink-0"
+                  style={{ backgroundColor: variant.color.hex }}
+                />
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStockBadgeColor(variant.stock)}`}>
+                  {variant.stock}
+                </span>
+              </div>
+            ))}
+            {product.variants.length > 3 && (
+              <span className="text-xs text-gray-400">+{product.variants.length - 3}</span>
+            )}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium w-1/6">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-indigo-600 hover:text-indigo-900 flex items-center space-x-1"
+          >
+            <Eye className="h-4 w-4" />
+            <span>Ver detalles</span>
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
+        </td>
+      </tr>
+      
+      {/* Expanded row with variant details */}
+      {isExpanded && (
+        <tr className="bg-gray-50">
+          <td colSpan={6} className="px-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {product.variants.map((variant: ProductVariantDto) => (
+                <div key={variant.variantId} className="bg-white rounded-lg p-4 border">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div 
+                      className="w-4 h-4 rounded-full border-2"
+                      style={{ backgroundColor: variant.color.hex }}
+                    />
+                    <span className="font-medium text-gray-900">{variant.color.name}</span>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Stock:</span>
+                      <span className={`font-medium ${variant.stock <= 5 ? 'text-red-600' : variant.stock <= 10 ? 'text-yellow-600' : 'text-green-600'}`}>
+                        {variant.stock} unidades
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Costo:</span>
+                      <span className="font-medium">{formatCurrency(variant.averageCostUSD)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Precio:</span>
+                      <span className="font-medium">{formatCurrency(variant.priceUSD)}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1">
+                      <span className="text-gray-500">Valuación:</span>
+                      <span className="font-medium">{formatCurrency(variant.valuationAtRetail)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+});
+
+ProductRow.displayName = 'ProductRow';
 
 const StockAnalyticsPage = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -38,14 +167,46 @@ const StockAnalyticsPage = () => {
     isLoadingSubcategoryAnalytics,
     isLoadingCategorySubcategoryAnalytics,
 
+    // Propiedades de paginación
+    hasMoreProducts,
+    
     // Funciones
     refreshAllStockData,
+    loadMoreProductAnalytics,
+    clearProductData,
 
     // Helpers
     formatCurrency,
     formatNumber,
     getStockBadgeColor,
   } = useStockAnalytics();
+
+  // Función para cargar más productos (compatible con useInfiniteScroll)
+  const handleLoadMoreProducts = async () => {
+    try {
+      await loadMoreProductAnalytics();
+    } catch (error) {
+      console.error('Error loading more products:', error);
+    }
+  };
+
+  // Limpiar datos cuando se cambie de tab
+  const handleTabChange = (newTab: string) => {
+    if (activeTab === 'products' && newTab !== 'products') {
+      // Al salir del tab de productos, limpiar datos para evitar acumulación
+      clearProductData();
+    }
+    setActiveTab(newTab);
+  };
+
+  // Hook para scroll infinito de productos
+  const { lastElementRef } = useInfiniteScroll<HTMLTableRowElement>({
+    hasMore: hasMoreProducts,
+    isLoading: isLoadingProductAnalytics,
+    onLoadMore: handleLoadMoreProducts,
+    threshold: 200,
+    debounceMs: 300,
+  });
 
   const tabs = [
     {
@@ -139,7 +300,7 @@ const StockAnalyticsPage = () => {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`${
                   activeTab === tab.id
                     ? "border-blue-500 text-blue-600"
@@ -254,65 +415,91 @@ const StockAnalyticsPage = () => {
         {activeTab === "products" && (
           <div className="bg-white rounded-lg border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center space-x-2">
-                <Grid3X3 className="h-5 w-5 text-gray-400" />
-                <h2 className="text-lg font-medium text-gray-900">Analytics por Producto</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Grid3X3 className="h-5 w-5 text-gray-400" />
+                  <h2 className="text-lg font-medium text-gray-900">Analytics por Producto</h2>
+                </div>
+                <p className="text-sm text-gray-500">
+                  {productAnalytics.length} productos cargados
+                  {hasMoreProducts && " · Scroll para cargar más"}
+                </p>
               </div>
             </div>
-            <div className="p-6">
-              {isLoadingProductAnalytics ? (
-                <div className="text-center py-8">
-                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-500">Cargando productos...</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {productAnalytics?.map((product) => (
-                    <div key={product.productId} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="font-semibold text-lg text-gray-900">{product.productModel}</h3>
-                          <p className="text-gray-500">{product.sku}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-lg text-gray-900">
-                            {formatCurrency(product.totalValuationAtRetail)}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {product.totalStock} unidades
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div className="text-center">
-                          <p className="text-sm text-gray-500">Stock Total</p>
-                          <p className="font-semibold text-gray-900">{product.totalStock}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-gray-500">Costo Total</p>
-                          <p className="font-semibold text-gray-900">{formatCurrency(product.totalValuationAtCost)}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-gray-500">Variantes</p>
-                          <p className="font-semibold text-gray-900">{product.variants.length}</p>
-                        </div>
-                      </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        {product.variants.map((variant) => (
-                          <div key={variant.variantId} className="flex items-center space-x-2 bg-gray-50 rounded p-2">
-                            <div 
-                              className="w-3 h-3 rounded-full border"
-                              style={{ backgroundColor: variant.color.hex }}
-                            />
-                            <span className="text-sm text-gray-700">{variant.color.name}</span>
-                            <StockBadge stock={variant.stock} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 table-fixed">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                      Producto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                      Stock Total
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                      Valuación Costo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                      Valuación Retail
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                      Variantes
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {productAnalytics.map((product, index) => {
+                    // Debug: verificar duplicados en desarrollo
+                    if (process.env.NODE_ENV === 'development') {
+                      const duplicates = productAnalytics.filter(p => p.productId === product.productId);
+                      if (duplicates.length > 1) {
+                        console.warn('Duplicate product found:', product.productId, duplicates);
+                      }
+                    }
+                    
+                    return (
+                      <ProductRow 
+                        key={`${product.productId}-${index}`} // Usar índice como fallback para evitar duplicados
+                        product={product}
+                        formatCurrency={formatCurrency}
+                        formatNumber={formatNumber}
+                        getStockBadgeColor={getStockBadgeColor}
+                        ref={index === productAnalytics.length - 1 ? lastElementRef : null}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Loading indicator */}
+              {isLoadingProductAnalytics && (
+                <div className="flex items-center justify-center py-8 border-t border-gray-200">
+                  <RefreshCw className="h-5 w-5 animate-spin mr-2 text-gray-400" />
+                  <span className="text-sm text-gray-500">Cargando más productos...</span>
+                </div>
+              )}
+
+              {/* No more data indicator */}
+              {!hasMoreProducts && productAnalytics.length > 0 && (
+                <div className="text-center py-8 border-t border-gray-200">
+                  <p className="text-sm text-gray-500">
+                    No hay más productos para mostrar
+                  </p>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {productAnalytics.length === 0 && !isLoadingProductAnalytics && (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium text-gray-900 mb-2">No hay productos</p>
+                  <p className="text-gray-500">
+                    No se encontraron productos con stock disponible
+                  </p>
                 </div>
               )}
             </div>

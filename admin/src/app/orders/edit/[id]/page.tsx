@@ -1306,10 +1306,7 @@ const EditOrderPage = () => {
                                   <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 overflow-hidden rounded-md bg-gray-50 border border-gray-200">
                                     <Image
                                       src={
-                                        (process.env.NEXT_PUBLIC_API_URL ||
-                                          "") +
-                                        (item.productVariant.images?.[0] ||
-                                          "/placeholder-image.jpg")
+                                        `${process.env.NEXT_PUBLIC_API_URL}/${item.productVariant.images?.[0] || "placeholder-image.jpg"}`
                                       }
                                       alt={`${
                                         item.productVariant.product.productModel
@@ -1329,8 +1326,7 @@ const EditOrderPage = () => {
                                       className="font-medium text-[#222222] truncate block"
                                       title={`${item.productVariant.product.productModel} ${item.productVariant.product.sku}`}
                                     >
-                                      {item.productVariant.product.productModel}{" "}
-                                      {item.productVariant.product.sku}
+                                      {item.productVariant.product.productModel}
                                     </span>
                                     <div className="flex items-center gap-2 mt-1">
                                       <span
@@ -1517,7 +1513,7 @@ const EditOrderPage = () => {
                         Reembolso:
                       </span>
                       <span className="text-sm text-[#A00000]">
-                        -{formatCurrency(form.refund.amount, "en-US", "USD")}
+                        -{formatCurrency(form.refund.appliedAmount, "en-US", "USD")}
                       </span>
                     </div>
                   )}

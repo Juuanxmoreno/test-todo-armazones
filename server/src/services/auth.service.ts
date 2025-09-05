@@ -1,8 +1,6 @@
 import argon2 from 'argon2';
-import * as WordPressHasher from 'wordpress-hash-node';
 import session from 'express-session';
 import { JwtPayload, decode as jwtDecode } from 'jsonwebtoken';
-
 import { RegisterRequestDto, LoginRequestDto, RegisterResponseDto, LoginResponseDto } from '@dto/auth.dto';
 import { capitalizeFirstLetter } from '@utils/stringUtils';
 import { setSessionUser } from '@utils/sessionUtils';
@@ -20,6 +18,7 @@ import { hashToken } from '@utils/hashToken';
 import transporter from '@config/nodemailer.config';
 import env from '@config/env';
 import { renderResetPasswordEmail } from '@utils/renderResetPasswordEmail';
+import { isModernWpHash, verifyModernWpPassword } from '@utils/wordpressHashUtils';
 
 export class AuthService {
   /**
@@ -38,7 +37,9 @@ export class AuthService {
     try {
       const normalizedEmail = data.email.toLowerCase();
 
-      const existingUser = await User.findOne({ email: normalizedEmail }).lean();
+      const existingUser = await User.findOne({
+        email: normalizedEmail,
+      }).lean();
       if (existingUser) {
         logger.warn('Intento de creación de usuario por admin con correo ya registrado', {
           email: normalizedEmail,
@@ -51,7 +52,9 @@ export class AuthService {
 
       const displayName = data.displayName ? data.displayName : capitalizeFirstLetter(normalizedEmail.split('@')[0]);
 
-      const hashedPassword = await argon2.hash(data.password, { type: argon2.argon2id });
+      const hashedPassword = await argon2.hash(data.password, {
+        type: argon2.argon2id,
+      });
 
       const newUserDoc = await User.create({
         email: normalizedEmail,
@@ -67,7 +70,9 @@ export class AuthService {
 
       const newUser = await User.findById(newUserDoc._id).select('-password').lean();
       if (!newUser) {
-        logger.error('Usuario no encontrado después de creación por admin', { userId: newUserDoc._id });
+        logger.error('Usuario no encontrado después de creación por admin', {
+          userId: newUserDoc._id,
+        });
         throw new AppError('Error interno del servidor', 500, 'error', true);
       }
 
@@ -92,7 +97,10 @@ export class AuthService {
         updatedAt: newUser.updatedAt,
       };
     } catch (err) {
-      logger.error('Error en AuthService.createUserByAdmin', { error: err, input: { email: data.email } });
+      logger.error('Error en AuthService.createUserByAdmin', {
+        error: err,
+        input: { email: data.email },
+      });
       throw err;
     }
   }
@@ -212,9 +220,9 @@ export class AuthService {
       if (isArgon2Hash(userWithPassword.password)) {
         // Hash moderno → verificar con argon2
         isPasswordValid = await argon2.verify(userWithPassword.password, password);
-      } else {
-        // Hash legado de WP
-        isPasswordValid = WordPressHasher.CheckPassword(password, userWithPassword.password);
+      } else if (isModernWpHash(userWithPassword.password)) {
+        // Hash moderno de WordPress
+        isPasswordValid = await verifyModernWpPassword(password, userWithPassword.password);
 
         if (isPasswordValid) {
           // Si validó OK → rehash a argon2
@@ -224,7 +232,7 @@ export class AuthService {
           userWithPassword.password = newArgon2Hash;
           await userWithPassword.save();
 
-          logger.info('Password de usuario actualizada a argon2 tras login exitoso', {
+          logger.info('Password actualizada a argon2 tras login exitoso', {
             userId: userWithPassword._id,
             email: userWithPassword.email,
           });

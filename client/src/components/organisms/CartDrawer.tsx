@@ -185,6 +185,7 @@ const CartDrawer: React.FC = () => {
                             <Image
                               src={
                                 process.env.NEXT_PUBLIC_API_URL +
+                                "/" +
                                 variant.thumbnail
                               }
                               alt={variant.product.productModel}
@@ -195,8 +196,7 @@ const CartDrawer: React.FC = () => {
                           )}
                           <div className="flex flex-col text-sm text-gray-700 flex-grow">
                             <span className="font-semibold text-[#222222]">
-                              {variant.product.productModel}{" "}
-                              {variant.product.sku}
+                              {variant.product.productModel}
                             </span>
                             <span className="text-gray-500">
                               {variant.color.name}

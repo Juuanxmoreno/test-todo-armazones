@@ -481,7 +481,7 @@ export default function EditProductPage({
             />
           ) : (
             <Image
-              src={process.env.NEXT_PUBLIC_API_URL + product.thumbnail}
+              src={`${process.env.NEXT_PUBLIC_API_URL}/${product.thumbnail}`}
               alt="Imagen principal"
               width={300}
               height={300}

@@ -1,4 +1,4 @@
-import { CreateExpenseRequest, ExpenseListResponse, ExpenseState, IExpense, MonthlyExpenseFilters } from '../../interfaces/expense';
+import { CreateExpenseRequest, ExpenseListResponse, ExpenseState, IExpense, MonthlyExpenseFilters, UpdateExpenseRequest } from '../../interfaces/expense';
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import axiosInstance from '../../utils/axiosInstance';
 import { ApiResponse, getErrorMessage } from '../../types/api';
@@ -71,6 +71,26 @@ export const createManualExpense = createAsyncThunk<
   }
 );
 
+export const updateExpense = createAsyncThunk<
+  IExpense,
+  { id: string; expenseData: UpdateExpenseRequest },
+  { rejectValue: string }
+>(
+  'expenses/update',
+  async ({ id, expenseData }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.patch<ApiResponse<IExpense>>(
+        `/expenses/${id}`,
+        expenseData
+      );
+
+      return response.data.data!;
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
 // Slice
 const expenseSlice = createSlice({
   name: 'expenses',
@@ -133,6 +153,28 @@ const expenseSlice = createSlice({
       .addCase(createManualExpense.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || 'Error al crear gasto';
+      })
+      // Update expense
+      .addCase(updateExpense.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateExpense.fulfilled, (state, action) => {
+        state.loading = false;
+        const updatedExpense = action.payload;
+        // Actualizar el gasto en la lista si existe
+        const index = state.expenses.findIndex(expense => expense.id === updatedExpense.id);
+        if (index !== -1) {
+          // Recalcular totales restando el antiguo y sumando el nuevo
+          const oldExpense = state.expenses[index];
+          state.totalAmountARS = state.totalAmountARS - oldExpense.amountARS + updatedExpense.amountARS;
+          state.totalAmountUSD = state.totalAmountUSD - oldExpense.amountUSD + updatedExpense.amountUSD;
+          state.expenses[index] = updatedExpense;
+        }
+      })
+      .addCase(updateExpense.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || 'Error al actualizar gasto';
       });
   }
 });

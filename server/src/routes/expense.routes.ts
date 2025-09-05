@@ -11,4 +11,7 @@ router.post('/', checkAdmin, expenseController.createManualExpense);
 // Obtener gastos por mes
 router.get('/:year/:month', expenseController.getMonthlyExpenses);
 
+// Actualizar gasto manual (solo admin)
+router.patch('/:id', checkAdmin, expenseController.updateExpense);
+
 export default router;

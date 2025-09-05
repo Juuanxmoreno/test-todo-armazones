@@ -37,11 +37,11 @@ export const fetchOrderAnalytics = createAsyncThunk<
         return rejectWithValue("Para período personalizado se requieren fecha de inicio y fin");
       }
       
-      // Validar que startDate sea anterior a endDate
+      // Validar que startDate sea anterior o igual a endDate
       const startDate = new Date(params.customRange.startDate);
       const endDate = new Date(params.customRange.endDate);
-      if (startDate >= endDate) {
-        return rejectWithValue("La fecha de inicio debe ser anterior a la fecha de fin");
+      if (startDate > endDate) {
+        return rejectWithValue("La fecha de inicio debe ser anterior o igual a la fecha de fin");
       }
     }
 
@@ -150,7 +150,7 @@ export const fetchStockValuation = createAsyncThunk<
 // Thunk para obtener analytics por producto
 export const fetchProductStockAnalytics = createAsyncThunk<
   ProductStockAnalyticsDto[],
-  { limit?: number; offset?: number },
+  { limit?: number; offset?: number; append?: boolean },
   { rejectValue: string }
 >("analytics/fetchProductStockAnalytics", async (params, { rejectWithValue }) => {
   try {
@@ -353,6 +353,13 @@ interface AnalyticsState {
     categoryAnalytics: CategoryStockAnalyticsDto[] | null;
     subcategoryAnalytics: SubcategoryStockAnalyticsDto[] | null;
     categorySubcategoryAnalytics: CategorySubcategoryStockAnalyticsDto[] | null;
+    pagination: {
+      productAnalytics: {
+        hasMore: boolean;
+        currentOffset: number;
+        pageSize: number;
+      };
+    };
     loading: {
       valuation: boolean;
       productAnalytics: boolean;
@@ -418,6 +425,13 @@ const initialState: AnalyticsState = {
     categoryAnalytics: null,
     subcategoryAnalytics: null,
     categorySubcategoryAnalytics: null,
+    pagination: {
+      productAnalytics: {
+        hasMore: true,
+        currentOffset: 0,
+        pageSize: 50,
+      },
+    },
     loading: {
       valuation: false,
       productAnalytics: false,
@@ -578,6 +592,11 @@ const analyticsSlice = createSlice({
     clearProductStockAnalytics: (state) => {
       state.stockAnalytics.productAnalytics = null;
       state.stockAnalytics.error.productAnalytics = null;
+      state.stockAnalytics.pagination.productAnalytics = {
+        hasMore: true,
+        currentOffset: 0,
+        pageSize: 50,
+      };
     },
 
     clearLowStockAlerts: (state) => {
@@ -687,8 +706,37 @@ const analyticsSlice = createSlice({
       })
       .addCase(fetchProductStockAnalytics.fulfilled, (state, action) => {
         state.stockAnalytics.loading.productAnalytics = false;
-        state.stockAnalytics.productAnalytics = action.payload;
         state.stockAnalytics.error.productAnalytics = null;
+
+        const newData = action.payload;
+        const meta = action.meta.arg;
+        
+        if (meta.offset === 0 || !state.stockAnalytics.productAnalytics) {
+          // Primera carga o reset - reemplazar todos los datos
+          state.stockAnalytics.productAnalytics = newData;
+        } else {
+          // Carga siguiente - concatenar datos evitando duplicados
+          const existingIds = new Set(
+            state.stockAnalytics.productAnalytics?.map(p => p.productId) || []
+          );
+          
+          const uniqueNewData = newData.filter(
+            product => !existingIds.has(product.productId)
+          );
+          
+          state.stockAnalytics.productAnalytics = [
+            ...(state.stockAnalytics.productAnalytics || []),
+            ...uniqueNewData
+          ];
+        }
+
+        // Actualizar información de paginación
+        state.stockAnalytics.pagination.productAnalytics.currentOffset = 
+          (meta.offset || 0) + newData.length;
+        state.stockAnalytics.pagination.productAnalytics.hasMore = 
+          newData.length === (meta.limit || 50);
+        state.stockAnalytics.pagination.productAnalytics.pageSize = 
+          meta.limit || 50;
       })
       .addCase(fetchProductStockAnalytics.rejected, (state, action) => {
         state.stockAnalytics.loading.productAnalytics = false;

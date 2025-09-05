@@ -331,8 +331,7 @@ const OrdersPage = () => {
                               <td>
                                 <div className="flex flex-col">
                                   <strong>
-                                    {item.productVariant.product.productModel}{" "}
-                                    {item.productVariant.product.sku}
+                                    {item.productVariant.product.productModel}
                                   </strong>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-sm text-gray-500">

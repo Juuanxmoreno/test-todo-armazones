@@ -13,6 +13,10 @@ export interface Order {
     id: string;
     email: string;
     displayName: string;
+    firstName?: string;
+    lastName?: string;
+    dni?: string;
+    cuit?: string;
     role: "USER" | "ADMIN";
     status: UserStatus;
   };

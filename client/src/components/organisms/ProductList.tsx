@@ -30,6 +30,7 @@ const ProductList = ({ categorySlug, subcategorySlug }: ProductListProps) => {
           categorySlug?: string;
           subcategorySlug?: string;
           cursor?: string;
+          inStock?: boolean;
         }) => {
           fetchProducts(params);
         },
@@ -44,6 +45,7 @@ const ProductList = ({ categorySlug, subcategorySlug }: ProductListProps) => {
         categorySlug,
         subcategorySlug,
         cursor: nextCursor,
+        inStock: true, // Mantener filtro de stock en paginación
       });
     }
   }, [debouncedFetch, categorySlug, subcategorySlug, nextCursor]);
@@ -64,7 +66,7 @@ const ProductList = ({ categorySlug, subcategorySlug }: ProductListProps) => {
 
   // Reset products on category/subcategory change
   useEffect(() => {
-    fetchProducts({ categorySlug, subcategorySlug });
+    fetchProducts({ categorySlug, subcategorySlug, inStock: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categorySlug, subcategorySlug]);
 

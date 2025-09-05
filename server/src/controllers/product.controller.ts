@@ -130,6 +130,7 @@ export class ProductController {
       const cursor = req.query.cursor as string | undefined;
       const categorySlug = req.query.categorySlug as string | undefined;
       const subcategorySlug = req.query.subcategorySlug as string | undefined;
+      const inStockParam = req.query.inStock as string | undefined;
 
       let limit = 10;
       if (limitParam) {
@@ -143,8 +144,14 @@ export class ProductController {
         }
       }
 
+      // Convertir el parámetro inStock a boolean
+      let inStock: boolean | undefined;
+      if (inStockParam !== undefined) {
+        inStock = inStockParam.toLowerCase() === 'true';
+      }
+
       // Llamada al servicio para obtener productos
-      const result = await this.productService.getProducts(limit, cursor, categorySlug, subcategorySlug);
+      const result = await this.productService.getProducts(limit, cursor, categorySlug, subcategorySlug, inStock);
 
       res.status(200).json({
         status: 'success',

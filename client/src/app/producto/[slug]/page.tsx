@@ -211,7 +211,7 @@ const ProductPage = () => {
         {/* Imágenes del producto */}
         <div className="flex-1 flex justify-center items-start">
           <Image
-            src={process.env.NEXT_PUBLIC_API_URL + imageToShow}
+            src={`${process.env.NEXT_PUBLIC_API_URL}/${imageToShow}`}
             alt={productDetail.productModel}
             width={400}
             height={400}
@@ -226,7 +226,7 @@ const ProductPage = () => {
         {/* Detalles del producto */}
         <div className="flex-1">
           <h1 className="text-3xl font-medium mb-4 text-[#222222]">
-            {productDetail.productModel + " " + productDetail.sku}
+            {productDetail.productModel}
           </h1>
           <div className="mb-4">
             <p className="text-[#555555] text-xl font-normal mb-4">

@@ -25,8 +25,8 @@ export const AnalyticsSchema = z
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
           return false;
         }
-        // Validar que startDate sea anterior a endDate
-        if (startDate >= endDate) {
+        // Validar que startDate sea anterior o igual a endDate
+        if (startDate > endDate) {
           return false;
         }
       }
@@ -34,7 +34,7 @@ export const AnalyticsSchema = z
     },
     {
       message:
-        'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
+        'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior o igual a endDate',
     },
   )
   .transform((data) => ({
@@ -76,8 +76,8 @@ export const AnalyticsSchemaOptionalPeriod = z
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
           return false;
         }
-        // Validar que startDate sea anterior a endDate
-        if (startDate >= endDate) {
+        // Validar que startDate sea anterior o igual a endDate
+        if (startDate > endDate) {
           return false;
         }
       }
@@ -85,7 +85,7 @@ export const AnalyticsSchemaOptionalPeriod = z
     },
     {
       message:
-        'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior a endDate',
+        'Para período custom: startDate y endDate son requeridos, deben ser fechas válidas y startDate debe ser anterior o igual a endDate',
     },
   )
   .transform((data) => ({

@@ -149,7 +149,7 @@ const ProductsPage = () => {
               >
                 <div>
                   <Image
-                    src={process.env.NEXT_PUBLIC_API_URL + product.thumbnail}
+                    src={`${process.env.NEXT_PUBLIC_API_URL}/${product.thumbnail}`}
                     alt={
                       product.productModel + " " + product.sku ||
                       "Product Image"
@@ -160,7 +160,7 @@ const ProductsPage = () => {
                 </div>
                 <div className="list-col-grow flex-1">
                   <div className="text-base font-medium text-[#222222]">
-                    {product.productModel} {product.sku}
+                    {product.productModel}
                   </div>
                   <div className="text-sm text-[#666666]">
                     {product.category.map((cat) => cat.name).join(", ")} -{" "}
@@ -236,7 +236,7 @@ const ProductsPage = () => {
               >
                 <div>
                   <Image
-                    src={process.env.NEXT_PUBLIC_API_URL + product.thumbnail}
+                    src={`${process.env.NEXT_PUBLIC_API_URL}/${product.thumbnail}`}
                     alt={
                       product.productModel + " " + product.sku ||
                       "Product Image"
@@ -247,7 +247,7 @@ const ProductsPage = () => {
                 </div>
                 <div className="list-col-grow flex-1">
                   <div className="text-base font-medium text-[#222222]">
-                    {product.productModel} {product.sku}
+                    {product.productModel}
                   </div>
                   <div className="text-sm text-[#666666]">
                     {product.category.map((cat) => cat.name).join(", ")} -{" "}
@@ -304,7 +304,7 @@ const ProductsPage = () => {
             >
               <div>
                 <Image
-                  src={process.env.NEXT_PUBLIC_API_URL + product.thumbnail}
+                  src={`${process.env.NEXT_PUBLIC_API_URL}/${product.thumbnail}`}
                   alt={
                     product.productModel + " " + product.sku || "Product Image"
                   }
@@ -314,7 +314,7 @@ const ProductsPage = () => {
               </div>
               <div className="list-col-grow flex-1">
                 <div className="text-base font-medium text-[#222222]">
-                  {product.productModel} {product.sku}
+                  {product.productModel}
                 </div>
                 <div className="text-sm text-[#666666]">
                   {product.category.map((cat) => cat.name).join(", ")} -{" "}

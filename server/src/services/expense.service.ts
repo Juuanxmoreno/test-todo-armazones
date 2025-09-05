@@ -1,16 +1,17 @@
 import Expense, { IExpenseDocument } from '@models/Expense';
 import {
   CreateExpenseRequestDto,
+  UpdateExpenseRequestDto,
   ExpenseResponseDto,
   ExpenseListResponseDto,
   MonthlyExpenseFilters,
-  BluelyticsApiResponse,
 } from '@dto/expense.dto';
 import { ExpenseType, Currency } from '@interfaces/expense';
 import { StockMovementReason, StockMovementType } from '@interfaces/stockMovement';
 import { AppError } from '@utils/AppError';
 import logger from '@config/logger';
 import { Types, FilterQuery } from 'mongoose';
+import { DollarService } from './dollar.service';
 
 // Interfaces para documentos populados
 interface PopulatedStockMovement {
@@ -31,33 +32,35 @@ interface PopulatedExpenseDocument extends Omit<IExpenseDocument, 'stockMovement
 }
 
 export class ExpenseService {
+  private dollarService: DollarService;
+
+  constructor() {
+    this.dollarService = new DollarService();
+  }
   /**
-   * Obtiene la tasa de cambio blue del dólar desde la API de Bluelytics
+   * Obtiene la tasa de cambio del dólar desde el servicio centralizado
    */
-  private async getBlueExchangeRate(): Promise<number> {
+  private async getExchangeRate(): Promise<number> {
     try {
-      const response = await fetch('https://api.bluelytics.com.ar/v2/latest');
+      const dollarData = await this.dollarService.getDollar();
 
-      if (!response.ok) {
-        throw new AppError('Error al obtener la cotización del dólar', 500);
-      }
+      logger.info('Tasa de cambio obtenida del servicio Dollar', {
+        value: dollarData.value,
+        source: dollarData.source,
+        apiUpdatedAt: dollarData.apiUpdatedAt,
+      });
 
-      const data = (await response.json()) as BluelyticsApiResponse;
-
-      if (!data.blue?.value_sell) {
-        throw new AppError('Cotización del dólar no disponible', 500);
-      }
-
-      return data.blue.value_sell;
+      return dollarData.value;
     } catch (error: unknown) {
-      logger.error('Error fetching blue exchange rate', { error });
+      logger.error('Error obteniendo tasa de cambio del servicio Dollar', { error });
 
       if (error instanceof AppError) {
         throw error;
       }
 
-      throw new AppError('Error al obtener la cotización del dólar', 500, 'error', false, {
+      throw new AppError('Error al obtener la tasa de cambio del dólar', 500, 'error', false, {
         cause: error instanceof Error ? error.message : String(error),
+        hint: 'Verifica que el servicio Dollar esté configurado correctamente',
       });
     }
   }
@@ -72,7 +75,7 @@ export class ExpenseService {
   ): Promise<{ amountARS: number; amountUSD: number; exchangeRate: number }> {
     if (fromCurrency === Currency.USD) {
       // Si es USD, obtener tasa de cambio y convertir a ARS
-      const rate = exchangeRate || (await this.getBlueExchangeRate());
+      const rate = exchangeRate || (await this.getExchangeRate());
       return {
         amountARS: amount * rate,
         amountUSD: amount,
@@ -80,7 +83,7 @@ export class ExpenseService {
       };
     } else {
       // Si es ARS, obtener tasa de cambio y convertir a USD
-      const rate = exchangeRate || (await this.getBlueExchangeRate());
+      const rate = exchangeRate || (await this.getExchangeRate());
       return {
         amountARS: amount,
         amountUSD: amount / rate,
@@ -248,6 +251,84 @@ export class ExpenseService {
       throw error instanceof AppError
         ? error
         : new AppError('Error al obtener gastos mensuales.', 500, 'error', false, {
+            cause: error instanceof Error ? error.message : String(error),
+          });
+    }
+  }
+
+  /**
+   * Obtiene un gasto por ID
+   */
+  private async getExpenseById(id: Types.ObjectId): Promise<IExpenseDocument> {
+    const expense = await Expense.findById(id);
+    if (!expense) {
+      throw new AppError('Gasto no encontrado.', 404, 'error', false);
+    }
+    return expense;
+  }
+
+  /**
+   * Actualiza un gasto manual
+   */
+  public async updateExpense(id: Types.ObjectId, dto: UpdateExpenseRequestDto): Promise<ExpenseResponseDto> {
+    try {
+      const expense = await this.getExpenseById(id);
+
+      // Verificar que sea un gasto manual
+      if (expense.type !== ExpenseType.MANUAL) {
+        throw new AppError('Solo se pueden actualizar gastos manuales.', 400, 'error', false);
+      }
+
+      // Preparar campos a actualizar
+      const updateFields: Partial<IExpenseDocument> = {};
+
+      if (dto.description !== undefined) {
+        updateFields.description = dto.description;
+      }
+
+      if (dto.reference !== undefined) {
+        updateFields.reference = dto.reference;
+      }
+
+      // Si se actualiza amount o currency, recalcular montos
+      if (dto.amount !== undefined || dto.currency !== undefined) {
+        const amount =
+          dto.amount !== undefined
+            ? dto.amount
+            : expense.currency === Currency.ARS
+              ? expense.amountARS
+              : expense.amountUSD;
+        const currency = dto.currency !== undefined ? dto.currency : expense.currency;
+
+        const { amountARS, amountUSD, exchangeRate } = await this.convertCurrency(amount, currency);
+
+        updateFields.amountARS = amountARS;
+        updateFields.amountUSD = amountUSD;
+        updateFields.currency = currency;
+        if (currency === Currency.ARS) {
+          updateFields.exchangeRate = exchangeRate;
+        }
+      }
+
+      // Actualizar el gasto
+      const updatedExpense = await Expense.findByIdAndUpdate(
+        id,
+        { ...updateFields, updatedAt: new Date() },
+        { new: true, runValidators: true },
+      );
+
+      if (!updatedExpense) {
+        throw new AppError('Error al actualizar el gasto.', 500, 'error', false);
+      }
+
+      // Mapear a DTO de respuesta
+      return this.mapExpenseToResponseDto(updatedExpense);
+    } catch (error: unknown) {
+      logger.error('Error updating expense', { error, id, dto });
+
+      throw error instanceof AppError
+        ? error
+        : new AppError('Error al actualizar gasto.', 500, 'error', false, {
             cause: error instanceof Error ? error.message : String(error),
           });
     }

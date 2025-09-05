@@ -34,6 +34,7 @@ export const useProducts = () => {
       subcategorySlug?: string;
       cursor?: string;
       limit?: number;
+      inStock?: boolean;
     }) => dispatch(fetchProducts(params)),
     fetchProductBySlug: (slug: string) => dispatch(fetchProductBySlug(slug)),
     searchProducts: (q: string) => dispatch(searchProducts(q)),

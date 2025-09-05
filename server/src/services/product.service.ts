@@ -222,6 +222,7 @@ export class ProductService {
     cursor?: string,
     categorySlug?: string,
     subcategorySlug?: string,
+    inStock?: boolean,
   ): Promise<{
     products: ProductListItemDto[];
     nextCursor: string | null;
@@ -255,6 +256,28 @@ export class ProductService {
         }
       }
 
+      // Si se solicita filtrar por stock, primero obtener productos que tienen variantes con stock
+      let filteredProductIds: Types.ObjectId[] | undefined;
+      if (inStock === true) {
+        const productsWithStock = await ProductVariant.aggregate([
+          { $match: { stock: { $gt: 0 } } },
+          { $group: { _id: '$product' } },
+          { $project: { _id: 1 } },
+        ]);
+        filteredProductIds = productsWithStock.map((item) => item._id);
+
+        // Si no hay productos con stock, retornar resultado vacío
+        if (filteredProductIds.length === 0) {
+          return {
+            products: [],
+            nextCursor: null,
+          };
+        }
+
+        // Agregar filtro de productos con stock al query principal
+        query._id = query._id ? { ...query._id, $in: filteredProductIds } : { $in: filteredProductIds };
+      }
+
       const products = await Product.find(query)
         .sort({ _id: 1 })
         .limit(limit)
@@ -278,7 +301,7 @@ export class ProductService {
         variantsMap.set(productId.toString(), this.mapVariants(variants as IProductVariantDocument[]));
       }
 
-      const result: ProductListItemDto[] = products.map((product) => {
+      let result: ProductListItemDto[] = products.map((product) => {
         const categoryInfo = this.mapCategories(product.category);
         const subcategoryInfo = this.mapSubcategory(product.subcategory);
 
@@ -295,6 +318,12 @@ export class ProductService {
           variants: variantsMap.get(product._id.toString()) ?? [],
         };
       });
+
+      // Si se solicita filtrar por stock, hacer un filtro adicional en el resultado
+      // para asegurar que solo se incluyan productos con al menos una variante con stock
+      if (inStock === true) {
+        result = result.filter((product) => product.variants.some((variant) => variant.stock > 0));
+      }
 
       const nextCursor = products.length === limit ? products[products.length - 1]._id.toString() : null;
 

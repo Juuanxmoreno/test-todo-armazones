@@ -79,7 +79,7 @@ const ProductCard = ({
       >
         <Link href={`/producto/${slug}`}>
           <Image
-            src={process.env.NEXT_PUBLIC_API_URL + imageToShow}
+            src={`${process.env.NEXT_PUBLIC_API_URL}/${imageToShow}`}
             alt={productModel}
             width={300}
             height={300}
@@ -111,7 +111,7 @@ const ProductCard = ({
         </div>
         <Link href={`/producto/${slug}`}>
           <h2 className="card-title text-sm font-semibold text-[#111]">
-            {productModel + " " + sku}
+            {productModel}
           </h2>
         </Link>
         <p className="text-xs font-bold text-gray-800">

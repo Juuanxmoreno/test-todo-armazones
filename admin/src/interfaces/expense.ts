@@ -38,6 +38,13 @@ export interface CreateExpenseRequest {
   reference?: string;
 }
 
+export interface UpdateExpenseRequest {
+  description?: string;
+  amount?: number;
+  currency?: Currency;
+  reference?: string;
+}
+
 export interface ExpenseListResponse {
   expenses: IExpense[];
   totalExpenses: number;

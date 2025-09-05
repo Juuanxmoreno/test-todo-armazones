@@ -4,6 +4,7 @@ import { RootState, AppDispatch } from '../redux/store';
 import {
   fetchMonthlyExpenses,
   createManualExpense,
+  updateExpense,
   setFilters,
   clearError,
   resetExpenses
@@ -11,7 +12,8 @@ import {
 import { 
   CreateExpenseRequest, 
   MonthlyExpenseFilters,
-  IExpense 
+  IExpense,
+  UpdateExpenseRequest
 } from '../interfaces/expense';
 
 export const useExpenses = () => {
@@ -49,6 +51,23 @@ export const useExpenses = () => {
         return null;
       } catch (error) {
         console.error('Error creating expense:', error);
+        return null;
+      }
+    },
+    [dispatch]
+  );
+
+  // Actualizar gasto
+  const updateExpenseData = useCallback(
+    async (id: string, expenseData: UpdateExpenseRequest): Promise<IExpense | null> => {
+      try {
+        const result = await dispatch(updateExpense({ id, expenseData }));
+        if (updateExpense.fulfilled.match(result)) {
+          return result.payload;
+        }
+        return null;
+      } catch (error) {
+        console.error('Error updating expense:', error);
         return null;
       }
     },
@@ -120,6 +139,7 @@ export const useExpenses = () => {
     // Actions
     getMonthlyExpenses,
     createExpense,
+    updateExpenseData,
     updateFilters,
     clearErrorMessage,
     clearExpenses,

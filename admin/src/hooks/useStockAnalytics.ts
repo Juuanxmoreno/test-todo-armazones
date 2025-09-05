@@ -22,6 +22,9 @@ export const useStockAnalytics = () => {
 
   const { stockAnalytics } = useAppSelector((state) => state.analytics);
 
+  // Estados de carga (mover arriba para usar en callbacks)
+  const isLoadingProductAnalytics = stockAnalytics.loading.productAnalytics;
+
   // ============================================================================
   // STOCK VALUATION FUNCTIONS
   // ============================================================================
@@ -43,17 +46,44 @@ export const useStockAnalytics = () => {
   // Función para cargar analytics por producto
   const loadProductAnalytics = useCallback(
     async (limit: number = 50, offset: number = 0) => {
-      await dispatch(fetchProductStockAnalytics({ limit, offset }));
+      try {
+        const result = await dispatch(fetchProductStockAnalytics({ limit, offset })).unwrap();
+        return result;
+      } catch (error) {
+        console.error('Error loading product analytics:', error);
+        throw error;
+      }
     },
     [dispatch]
   );
 
-  // Función para refrescar analytics de productos
+  // Función para cargar más productos (paginación infinita)
+  const loadMoreProductAnalytics = useCallback(
+    async (limit: number = 50) => {
+      // Evitar múltiples llamadas simultáneas
+      if (isLoadingProductAnalytics) {
+        return;
+      }
+      
+      const currentOffset = stockAnalytics.pagination.productAnalytics.currentOffset;
+      return await loadProductAnalytics(limit, currentOffset);
+    },
+    [stockAnalytics.pagination.productAnalytics.currentOffset, loadProductAnalytics, isLoadingProductAnalytics]
+  );
+
+  // Función para refrescar analytics de productos (reemplaza todos los datos)
   const refreshProductAnalytics = useCallback(
     async (limit: number = 50) => {
-      await dispatch(fetchProductStockAnalytics({ limit, offset: 0 }));
+      try {
+        // Limpiar datos existentes antes de cargar nuevos
+        dispatch(clearProductStockAnalytics());
+        return await loadProductAnalytics(limit, 0);
+      } catch (error) {
+        console.error('Error refreshing product analytics:', error);
+        throw error;
+      }
     },
-    [dispatch]
+    [dispatch, loadProductAnalytics]
   );
 
   // Función para limpiar datos de productos
@@ -218,7 +248,6 @@ export const useStockAnalytics = () => {
 
   // Estados de carga
   const isLoadingValuation = stockAnalytics.loading.valuation;
-  const isLoadingProductAnalytics = stockAnalytics.loading.productAnalytics;
   const isLoadingLowStockAlerts = stockAnalytics.loading.lowStockAlerts;
   const isLoadingCategoryAnalytics = stockAnalytics.loading.categoryAnalytics;
   const isLoadingSubcategoryAnalytics = stockAnalytics.loading.subcategoryAnalytics;
@@ -359,9 +388,15 @@ export const useStockAnalytics = () => {
     categorySubcategoryAnalyticsError,
     hasAnyError,
 
+    // Propiedades de paginación
+    hasMoreProducts: stockAnalytics.pagination.productAnalytics.hasMore,
+    productPageSize: stockAnalytics.pagination.productAnalytics.pageSize,
+    currentProductOffset: stockAnalytics.pagination.productAnalytics.currentOffset,
+
     // Funciones individuales
     loadStockValuation,
     loadProductAnalytics,
+    loadMoreProductAnalytics,
     loadLowStockAlerts,
     loadCategoryAnalytics,
     loadSubcategoryAnalytics,

@@ -621,8 +621,7 @@ const CheckoutPage = () => {
                         <Image
                           src={
                             variant.images?.[0]
-                              ? process.env.NEXT_PUBLIC_API_URL +
-                                variant.thumbnail
+                              ? `${process.env.NEXT_PUBLIC_API_URL}/${variant.thumbnail}`
                               : "/placeholder.png"
                           }
                           width={40}
@@ -637,7 +636,7 @@ const CheckoutPage = () => {
                           className="font-semibold"
                           style={{ color: "#222222" }}
                         >
-                          {variant?.product.productModel} {variant?.product.sku}
+                          {variant?.product.productModel}
                         </div>
                         <div className="text-sm" style={{ color: "#222222" }}>
                           Color: {variant?.color.name}
@@ -744,7 +743,7 @@ const CheckoutPage = () => {
                     <Image
                       src={
                         variant.images[0]
-                          ? process.env.NEXT_PUBLIC_API_URL + variant.thumbnail
+                          ? `${process.env.NEXT_PUBLIC_API_URL}/${variant.thumbnail}`
                           : "/placeholder.png"
                       }
                       width={40}

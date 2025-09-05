@@ -104,8 +104,8 @@ export class AnalyticsDateHelper {
         if (isNaN(endDate.getTime())) {
           throw new Error(`Invalid endDate: ${customRange.endDate}`);
         }
-        if (startDate >= endDate) {
-          throw new Error('startDate must be before endDate');
+        if (startDate > endDate) {
+          throw new Error('startDate must be before or equal to endDate');
         }
 
         const startZoned = startOfDay(toZonedTime(startDate, timezone));

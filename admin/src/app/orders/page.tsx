@@ -377,7 +377,8 @@ const OrdersPage = () => {
                   Datos del cliente:
                 </h4>
                 <p className="mb-2 text-[#333333]">
-                  <strong>Nombre:</strong> {previewOrder.user.displayName}
+                  <strong>Nombre:</strong> {previewOrder.user.firstName}{" "}
+                  {previewOrder.user.lastName}
                 </p>
                 <p className="mb-2 text-[#333333]">
                   <strong>Email:</strong>{" "}
@@ -388,10 +389,17 @@ const OrdersPage = () => {
                     {previewOrder.user.email}
                   </a>
                 </p>
-                <p className="mb-2 text-[#333333]">
-                  <strong>DNI:</strong>{" "}
-                  {previewOrder.shippingAddress.dni || "N/A"}
-                </p>
+                {previewOrder.user.dni && (
+                  <p className="mb-2 text-[#333333]">
+                    <strong>DNI:</strong>{" "}
+                    {previewOrder.user.dni || "N/A"}
+                  </p>
+                )}
+                {previewOrder.user.cuit && (
+                  <p className="mb-2 text-[#333333]">
+                    <strong>CUIT:</strong> {previewOrder.user.cuit}
+                  </p>
+                )}
                 <p className="mb-2 text-[#333333]">
                   <strong>Teléfono:</strong>{" "}
                   {previewOrder.shippingAddress.phoneNumber || "N/A"}
@@ -504,8 +512,7 @@ const OrdersPage = () => {
                               <td>
                                 <div className="flex flex-col">
                                   <strong>
-                                    {item.productVariant.product.productModel}{" "}
-                                    {item.productVariant.product.sku}
+                                    {item.productVariant.product.productModel}
                                   </strong>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-sm text-gray-500">

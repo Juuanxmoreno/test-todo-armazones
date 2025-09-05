@@ -14,7 +14,17 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "api.juancruzmoreno.dev",
         pathname: "/uploads/**",
-      }
+      },
+      {
+        protocol: "http",
+        hostname: "todoarmazonesarg.com",
+        pathname: "/wp-content/uploads/**",
+      },
+      {
+        protocol: "https",
+        hostname: "todoarmazonesarg.com",
+        pathname: "/wp-content/uploads/**",
+      },
     ],
   },
 };
